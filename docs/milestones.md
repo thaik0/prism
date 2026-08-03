@@ -2,9 +2,9 @@
 
 ## Current status
 
-**Current milestone:** Milestone 4 — Simulated Predictive Placement
+**Current milestone:** Milestone 5 — Rigorous Evaluation and Error Analysis
 
-**Project stage:** Milestone 4 implemented and verified
+**Project stage:** Milestone 5 implemented and verified
 
 A milestone is complete only when:
 
@@ -221,7 +221,7 @@ simulated-cost results, not measured storage latency.
 
 # Milestone 5 — Rigorous Evaluation and Error Analysis
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -229,15 +229,16 @@ Determine when Prism wins, when it loses, and which components cause remaining r
 
 ## Required capabilities
 
-- parameter sweeps over overlap, noise, context reliability, burst properties, scale, and capacity;
-- repeated seeded trials;
-- confidence intervals or uncertainty summaries;
-- calibration plots;
-- structural-recovery analysis;
-- activation and intensity error analysis;
-- system-weighted error analysis;
-- component oracle substitution;
-- exact-versus-greedy comparison.
+- one frozen 12-variant manifest covering capacity, promotion cost, noise,
+  burst duration, and context reliability;
+- three repeated fixed-seed trials per variant;
+- Training-Popularity Static and Validation-Final Frozen controls;
+- recent-state, activation/intensity, and residual-only forecast ablations;
+- dynamic-action and hidden-truth-only pre-transition diagnostics;
+- paired seed comparisons and descriptive sample uncertainty;
+- behavioral and fixed-trajectory migration-cost analysis;
+- structure, predictor, projection, placement, and oracle-regret diagnostics;
+- deterministic reports, resume validation, and byte-identical full sweeps.
 
 ## Completion gate
 
@@ -245,6 +246,21 @@ Determine when Prism wins, when it loses, and which components cause remaining r
 - Conclusions distinguish predictive opportunity from predictor quality.
 - Important failures can be traced to slow learner, fast predictor, controller, migration cost, or lack of workload opportunity.
 - No result is reported from one favorable seed alone.
+
+The committed manifest fixes 12 variants and seeds `1729`, `2718`, and `31415`.
+All 36 engineering-valid runs completed twice and the two experiment roots were
+byte-identical. The sweep records earlier scientific gates as outcomes rather
+than filtering runs.
+
+The principal conclusion is unfavorable to the dynamic-value hypothesis:
+Predictive Greedy was behaviorally identical to Validation-Final Frozen in 35
+of 36 runs and its total cost was identical to Recent-State-Only in 34 of 36.
+It beat Training-Popularity Static in a majority of seeds for 9 variants, but
+that advantage usually came from a better validation-developed static target.
+Only `promotion_0__seed_31415` changed test targets; it reduced cost by `243`
+relative to frozen while slightly reducing mean pre-transition realized-demand
+coverage. Oracle regret remained positive in every run, so predictive opportunity
+still exists. Full results and limitations are in `docs/milestone5_results.md`.
 
 ---
 

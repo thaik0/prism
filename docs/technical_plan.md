@@ -3,7 +3,7 @@
 ## Document status
 
 **Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 4 complete — Simulated Predictive Placement
+**Current implementation phase:** Milestone 5 complete — Rigorous Evaluation and Error Analysis
 
 **Last major planning revision:** August 2026
 
@@ -625,3 +625,30 @@ trace arrays.
 
 This milestone establishes controlled simulated evidence only. It does not
 implement or measure the real tier engine described in later sections.
+
+---
+
+# 23. Milestone 5 Evaluation Instantiation
+
+The completed evaluation freezes one manifest of 12 one-factor-at-a-time
+variants and three fixed seeds. Every engineering-valid run executes the same
+eleven policies: the six Milestone 4 policies, Training-Popularity Static,
+Validation-Final Frozen, and three mechanical forecast ablations. Ablations
+reuse training-fitted calibration coefficients and never refit. Hidden burst
+truth and oracle demand enter diagnostics only.
+
+The sequential harness preserves fully resolved trace-specific storage settings,
+stage artifacts, hashes, explicit run status, scientific-gate outcomes, paired
+seed differences, dynamic-action traces, pre-transition coverage, and descriptive
+oracle-regret terms. Engineering failures are excluded from aggregation;
+scientific failures are retained. Three seeds provide sample summaries, not
+confidence intervals or significance tests.
+
+The full sweep shows that a low-migration result is not evidence of successful
+anticipation. Predictive Greedy remained frozen through test in 35 of 36 runs
+and the fast-predictor contribution was not supported by the deterministic
+hypothesis rule. It often beat training-only popularity, demonstrating value in
+the validation-developed learned-factor placement, while positive regret to the
+one-window oracle in every run shows substantial unrealized opportunity. This
+narrows later work toward forecast-to-placement responsiveness; it does not
+authorize new models or controller objectives inside Milestone 5.

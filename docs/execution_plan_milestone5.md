@@ -1,6 +1,6 @@
 # Milestone 5 Rigorous Evaluation Execution Plan
 
-**Status:** In progress
+**Status:** Complete
 
 ## Scope
 

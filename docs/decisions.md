@@ -520,3 +520,42 @@ Independent myopic trajectories can affect ordering. Simulated tier costs omit
 prediction CPU time, queues, contention, concurrency, real migration timing,
 filesystem behavior, and wall-clock latency. These controlled results do not
 establish real RAM/SSD performance.
+
+---
+
+## D024 — Frozen causal evaluation of predictive placement
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 5 evaluates the frozen Milestone 1--4 pipeline with exactly 12
+one-factor-at-a-time variants, seeds `1729`, `2718`, and `31415`, and eleven
+policies. Training-Popularity Static and Validation-Final Frozen isolate static
+placement value. Recent-State-Only, Activation/Intensity-Only, and
+Residual-Baseline-Only mechanically remove forecast terms while retaining the
+original training-fitted coefficients and deterministic greedy controller.
+
+Engineering validity and scientific outcomes are separate. A valid fit, exact
+solve, and complete artifact set produces a completed run even when an earlier
+scientific gate fails. Aggregation retains seed-level paired differences and
+uses deterministic `supported`, `mixed`, `not_supported`, or
+`insufficient_data` rules. Three seeds do not justify confidence intervals or
+significance tests.
+
+**Rationale**
+
+Milestone 4's representative Predictive Greedy result made zero test promotions,
+had only a small hit-rate advantage over Recent-Demand Greedy, and assigned zero
+activation/intensity weight to three of four factors. Static and mechanical
+controls are needed to distinguish a useful validation-developed placement from
+continued predictor-driven anticipation.
+
+**Consequences and limitations**
+
+The completed sweep does not support dynamic value or fast-predictor contribution:
+35 of 36 runs exactly matched the frozen test residency, while only
+`promotion_0__seed_31415` acted dynamically. The full policy still often beat
+training-only popularity and always had positive regret to Oracle Greedy. These
+findings motivate future investigation but do not change the model, feature set,
+projection, objective, policy set, or storage implementation in this milestone.

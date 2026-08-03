@@ -5,7 +5,10 @@ includes **Milestone 1**, a controlled synthetic workload generator;
 **Milestone 2**, a deterministic slow structural-recovery baseline; and
 **Milestone 3**, a deterministic next-window activation and conditional-intensity
 predictor; and **Milestone 4**, a deterministic byte-constrained placement
-simulator. Milestone 4 consumes frozen predictor artifacts, calibrates
+simulator. **Milestone 5** adds a frozen 36-run, 12-variant evaluation with two
+static Prism controls, three mechanical forecast ablations, dynamic-action and
+pre-transition diagnostics, paired comparisons, and deterministic aggregation.
+Milestone 4 consumes frozen predictor artifacts, calibrates
 record-demand projection on training windows only, warms six independent policies
 on validation, and evaluates access plus promotion cost on identical test events.
 
@@ -97,6 +100,27 @@ oracle greedy, and one-window oracle exact, then writes exactly
 `simulation_config.json`, `projection_model.npz`, `policy_traces.npz`, and
 `evaluation_report.json`.
 
+## Run the frozen Milestone 5 evaluation
+
+```bash
+PYTHONPATH=src python3 -m prism.experiments.cli \
+  --manifest configs/milestone5_experiments.json \
+  --output-dir /tmp/prism_milestone5
+```
+
+The sequential harness runs all 12 variants at seeds `1729`, `2718`, and
+`31415`, preserves each Milestone 1--4 stage directory, and writes a complete
+index plus deterministic JSON and Markdown aggregates. Add `--experiment-id
+context_weak__seed_31415` for one run or `--resume` to hash-validate and reuse
+completed runs. A non-resume run rejects a nonempty destination.
+
+The completed sweep found that Predictive Greedy was identical to its frozen
+validation-final placement in 35 of 36 runs and identical in cost to the
+Recent-State-Only ablation in 34 of 36 runs. This qualifies the earlier result:
+the current implementation usually benefits from a good validation-developed
+placement, but the sweep does not support continued dynamic value from the fast
+predictor. See [the compact Milestone 5 results](docs/milestone5_results.md).
+
 ## Python API
 
 ```python
@@ -146,3 +170,6 @@ limitations. See [the Milestone 4 simulated-placement
 documentation](docs/simulated_placement.md) for projection calibration, policy
 timing, byte capacity, cost accounting, transition metrics, scientific gates,
 artifacts, representative results, and limitations.
+See [the Milestone 5 results](docs/milestone5_results.md) for the frozen design,
+causal controls, full-sweep results, gate outcomes, reproducibility evidence, and
+small-sample limitations.
