@@ -1,0 +1,133 @@
+# =========================
+# Operating systems
+# =========================
+
+.DS_Store
+Thumbs.db
+
+
+# =========================
+# Editors and IDEs
+# =========================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+
+# =========================
+# Environment and secrets
+# =========================
+
+.env
+.env.*
+!.env.example
+
+.venv/
+venv/
+env/
+
+
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyright/
+.hypothesis/
+
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+.ipynb_checkpoints/
+
+dist/
+site/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+
+# =========================
+# C++ and compiled binaries
+# =========================
+
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.pyd
+
+*.d
+*.gcda
+*.gcno
+*.gcov
+
+
+# =========================
+# CMake
+# =========================
+
+/build/
+/build-*/
+/out/
+/cmake-build-*/
+
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+Testing/
+_deps/
+
+
+# =========================
+# Profiling and debugging
+# =========================
+
+*.prof
+*.profraw
+*.profdata
+*.trace
+*.log
+
+gmon.out
+core
+core.*
+
+
+# =========================
+# Generated Prism artifacts
+# =========================
+
+/results/
+/traces/
+/checkpoints/
+/artifacts/
+/data/generated/
+
+
+# =========================
+# Temporary files
+# =========================
+
+/tmp/
+/temp/
+*.tmp
+*.bak
