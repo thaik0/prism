@@ -292,41 +292,9 @@ def _validate_completed_run(
 def _write_completion_summary(
     destination: Path, manifest: ExperimentManifest, index: dict[str, Any]
 ) -> None:
-    completed = [entry for entry in index["runs"] if entry["status"] == "completed"]
-    failed = [entry for entry in index["runs"] if entry["status"] == "failed"]
-    report = {
-        "schema_version": 1,
-        "source_manifest_sha256": manifest.sha256,
-        "completed_run_count": len(completed),
-        "failed_run_count": len(failed),
-        "pending_run_count": sum(
-            entry["status"] == "pending" for entry in index["runs"]
-        ),
-        "failed_runs": [
-            {
-                "experiment_id": entry["experiment_id"],
-                "failure": entry["failure"],
-            }
-            for entry in failed
-        ],
-        "warnings": [
-            "Three seeds provide limited uncertainty estimation; no confidence intervals or significance tests are reported."
-        ],
-    }
-    _write_json(destination / "aggregate_report.json", report)
-    lines = [
-        "# Milestone 5 Experiment Status",
-        "",
-        f"Completed runs: {len(completed)}",
-        "",
-        f"Failed runs: {len(failed)}",
-        "",
-        f"Pending runs: {report['pending_run_count']}",
-        "",
-        "Three seeds provide limited uncertainty estimation.",
-        "",
-    ]
-    (destination / "aggregate_tables.md").write_text("\n".join(lines), encoding="utf-8")
+    from prism.experiments.aggregate import write_aggregate_outputs
+
+    write_aggregate_outputs(destination, manifest)
 
 
 def _hash_run_artifacts(run_dir: Path) -> dict[str, str]:

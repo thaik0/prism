@@ -7,6 +7,7 @@ from prism.simulation.controllers import (
     greedy_placement,
     record_benefits,
 )
+from prism.simulation.diagnostics import evaluate_causal_diagnostics
 from prism.simulation.projection import (
     ProjectionModel,
     ProjectionResult,
@@ -44,6 +45,7 @@ __all__ = [
     "StorageState",
     "build_record_demand_variants",
     "exact_placement",
+    "evaluate_causal_diagnostics",
     "fit_record_demand_projection",
     "greedy_placement",
     "project_record_demand",

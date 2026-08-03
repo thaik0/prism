@@ -17,6 +17,7 @@ import sklearn
 
 from prism.predictor.persistence import PREDICTOR_ARTIFACT_FILENAMES
 from prism.simulation.config import SimulationConfig
+from prism.simulation.diagnostics import evaluate_causal_diagnostics
 from prism.simulation.evaluate import (
     evaluate_policy_results,
     evaluate_projection_diagnostics,
@@ -157,6 +158,7 @@ class _FrozenInputs:
     train_end: int
     validation_end: int
     bursts: tuple[dict[str, Any], ...]
+    hidden_ground_truth: dict[str, Any]
     source_hashes: dict[str, str]
     predictor_hashes: dict[str, str]
 
@@ -214,6 +216,14 @@ def run_simulated_evaluation(
         forecast_variants=forecast_variants,
     )
     policy_evaluation = evaluate_policy_results(replay, frozen.bursts)
+    causal_diagnostics = evaluate_causal_diagnostics(
+        replay,
+        frozen.demand.X,
+        frozen.demand.record_ids,
+        frozen.record_sizes,
+        frozen.hidden_ground_truth,
+        config,
+    )
     warnings = list(projection_diagnostics["warnings"])
     for warning in policy_evaluation["warnings"]:
         if warning not in warnings:
@@ -259,6 +269,7 @@ def run_simulated_evaluation(
             "scientific_gates_required_for_input": require_scientific_gates,
         },
         "policy_metrics": replay.policy_metrics,
+        "causal_diagnostics": causal_diagnostics,
         **policy_evaluation,
         "warnings": warnings,
     }
@@ -283,6 +294,11 @@ def run_simulated_evaluation(
             "window_boundary_policies": [
                 "recent_demand_greedy",
                 "predictive_greedy",
+                "training_popularity_static",
+                "validation_final_frozen",
+                "recent_state_only",
+                "activation_intensity_only",
+                "residual_baseline_only",
                 "oracle_greedy",
                 "oracle_exact",
             ],
@@ -409,6 +425,7 @@ def _load_frozen_inputs(
         train_end,
         validation_end,
         tuple(dict(burst) for burst in raw_bursts),
+        hidden,
         source_hashes,
         predictor_hashes,
     )

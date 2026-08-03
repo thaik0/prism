@@ -11,6 +11,13 @@ from tests.conftest import REPOSITORY_ROOT
 MANIFEST = REPOSITORY_ROOT / "configs" / "milestone5_experiments.json"
 
 
+def _stub_aggregate(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "prism.experiments.aggregate.write_aggregate_outputs",
+        lambda output_dir, manifest: {},
+    )
+
+
 def _completed(manifest, variant_id, seed, run_dir, entry):
     marker = run_dir / "marker.txt"
     marker.write_text(f"{variant_id}:{seed}\n", encoding="utf-8")
@@ -28,6 +35,7 @@ def test_one_experiment_lifecycle_keeps_scientific_failure_completed(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr("prism.experiments.runner._execute_run", _completed)
+    _stub_aggregate(monkeypatch)
     output = tmp_path / "output"
 
     result = run_experiments(
@@ -54,6 +62,7 @@ def test_engineering_failure_is_explicit_and_resume_reruns_it(
         raise RuntimeError("fixture engineering failure")
 
     output = tmp_path / "output"
+    _stub_aggregate(monkeypatch)
     monkeypatch.setattr("prism.experiments.runner._execute_run", fail)
     first = run_experiments(
         MANIFEST, output, experiment_id="baseline__seed_1729"
@@ -80,6 +89,7 @@ def test_engineering_failure_is_explicit_and_resume_reruns_it(
 
 def test_resume_reuses_only_hash_verified_completed_runs(tmp_path, monkeypatch) -> None:
     output = tmp_path / "output"
+    _stub_aggregate(monkeypatch)
     monkeypatch.setattr("prism.experiments.runner._execute_run", _completed)
     run_experiments(MANIFEST, output, experiment_id="baseline__seed_1729")
 
@@ -110,6 +120,7 @@ def test_nonempty_output_and_manifest_hash_mismatch_are_rejected(
     tmp_path, monkeypatch
 ) -> None:
     occupied = tmp_path / "occupied"
+    _stub_aggregate(monkeypatch)
     occupied.mkdir()
     (occupied / "keep.txt").write_text("keep\n", encoding="utf-8")
     with pytest.raises(ExperimentRunError, match="must be empty"):

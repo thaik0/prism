@@ -7,6 +7,12 @@ from prism.experiments.config import (
     VariantDefinition,
     load_manifest,
 )
+from prism.experiments.aggregate import (
+    aggregate_experiment_root,
+    descriptive_statistics,
+    fixed_trajectory_crossover,
+    write_aggregate_outputs,
+)
 from prism.experiments.materialize import (
     MaterializedRun,
     materialize_run,
@@ -27,9 +33,13 @@ __all__ = [
     "MaterializedRun",
     "PolicyDefinition",
     "VariantDefinition",
+    "aggregate_experiment_root",
+    "descriptive_statistics",
+    "fixed_trajectory_crossover",
     "load_manifest",
     "materialize_run",
     "resolve_simulation_config",
     "resolve_workload_config",
     "run_experiments",
+    "write_aggregate_outputs",
 ]
