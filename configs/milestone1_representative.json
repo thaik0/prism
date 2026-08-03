@@ -1,0 +1,35 @@
+{
+  "baseline_access_weight": 1.0,
+  "burst_access_weight": 2.0,
+  "burst_duration_max_windows": 5,
+  "burst_duration_min_windows": 2,
+  "burst_intensity_max": 4.0,
+  "burst_intensity_min": 1.0,
+  "max_accesses_per_request": 8,
+  "max_requests_per_session": 4,
+  "max_sessions_per_window": 5,
+  "min_accesses_per_request": 3,
+  "min_requests_per_session": 2,
+  "min_sessions_per_window": 2,
+  "noise_access_weight": 0.35,
+  "num_records": 64,
+  "num_users": 6,
+  "num_windows": 40,
+  "num_working_sets": 4,
+  "operation_type_probabilities": {
+    "read": 0.9,
+    "write": 0.1
+  },
+  "precursor_probability_scale": 0.55,
+  "record_size_max_bytes": 16384,
+  "record_size_min_bytes": 1024,
+  "request_types": [
+    "interactive",
+    "report",
+    "maintenance"
+  ],
+  "seed": 1729,
+  "spontaneous_activation_probability": 0.08,
+  "working_set_support_max": 20,
+  "working_set_support_min": 12
+}
