@@ -18,6 +18,9 @@ REPRESENTATIVE_STRUCTURE_CONFIG_PATH = (
 MILESTONE3_WORKLOAD_CONFIG_PATH = (
     REPOSITORY_ROOT / "configs" / "milestone3_predictor_workload.json"
 )
+MILESTONE3_PREDICTOR_CONFIG_PATH = (
+    REPOSITORY_ROOT / "configs" / "milestone3_predictor.json"
+)
 
 
 def base_config_dict() -> dict[str, Any]:
