@@ -1,0 +1,368 @@
+# Prism — Milestones
+
+## Current status
+
+**Current milestone:** Milestone 1 — Controlled Workload Generator  
+**Project stage:** Planning complete; implementation not yet started
+
+A milestone is complete only when:
+
+- required behavior is implemented;
+- acceptance tests pass;
+- representative output has been inspected;
+- documentation is updated;
+- limitations are recorded;
+- no future milestone was silently implemented.
+
+---
+
+# Milestone 0 — Repository Foundation
+
+**Status:** In progress
+
+## Objective
+
+Create the minimal repository structure and instructions required for reliable milestone-based development.
+
+## Deliverables
+
+- `AGENTS.md`
+- `README.md`
+- `docs/technical_planning.md`
+- `docs/decisions.md`
+- `docs/milestones.md`
+- minimal Python project configuration
+- test command documented
+
+## Completion gate
+
+- Repository instructions are present.
+- Technical scope and non-goals are documented.
+- A clean development environment can install the Python package and run an empty or starter test suite.
+- No simulator, ML, cache, or storage functionality is required.
+
+---
+
+# Milestone 1 — Controlled Workload Generator
+
+**Status:** Not started
+
+## Objective
+
+Generate reproducible access traces containing hidden fuzzy working sets, abrupt bursts, contextual signals, and simulator-only ground truth.
+
+## Required capabilities
+
+- configurable variable-sized records;
+- sparse fuzzy overlapping memberships;
+- configurable users and request types;
+- multi-request sessions;
+- hidden user/request-type affinities;
+- abrupt working-set bursts;
+- variable burst intensity and duration;
+- true, false, and missing precursors;
+- baseline demand;
+- background noise;
+- explicit seeded randomness;
+- separate observable and hidden schemas;
+- human-readable demonstration output.
+
+## Explicit non-goals
+
+- machine learning;
+- matrix factorization;
+- prediction;
+- cache policies;
+- placement;
+- simulated storage latency;
+- C++;
+- LLM-specific behavior;
+- drift;
+- adaptive working-set count.
+
+## Completion gate
+
+- Same configuration and seed produce identical output.
+- Different seeds normally produce different output.
+- Hidden truth cannot appear in observable event schemas.
+- Memberships are nonnegative, sparse, and overlapping when configured.
+- Events reference valid records, users, sessions, and request types.
+- Event time ordering is valid.
+- Tests demonstrate true precursors, false precursors, and unannounced bursts using reliable configurations.
+- A representative trace can be generated from a documented command.
+- Tests and documentation pass review.
+
+---
+
+# Milestone 2 — Demand Windows and Slow Working-Set Learner
+
+**Status:** Not started
+
+## Objective
+
+Transform access traces into demand matrices and learn fuzzy latent working sets from historical demand.
+
+## Required capabilities
+
+- configurable demand windows;
+- raw and normalized demand features;
+- simple factorization baseline;
+- fuzzy record memberships;
+- factor activation history;
+- comparison with planted simulator truth;
+- factor matching despite label permutation;
+- reconstruction and recovery metrics.
+
+## Explicit non-goals
+
+- fast contextual prediction;
+- placement;
+- C++;
+- adaptive factor count;
+- graph or transformer models;
+- online production training.
+
+## Completion gate
+
+- Demand-window construction is deterministic and tested.
+- The learner recovers planted structure under at least one controlled easy configuration.
+- Failure behavior under overlap and noise is measured.
+- Hidden truth is used only for evaluation.
+- Factor labels are matched correctly before structural comparison.
+- Results are reproducible across seeds.
+
+---
+
+# Milestone 3 — Fast Activation and Intensity Predictor
+
+**Status:** Not started
+
+## Objective
+
+Predict near-future working-set activation probability and conditional intensity from context and recent workload state.
+
+## Required capabilities
+
+- model-visible contextual feature construction;
+- one fixed configurable prediction horizon;
+- activation targets;
+- conditional intensity targets;
+- simple PyTorch model or models;
+- train/validation/test splitting that avoids leakage;
+- activation evaluation;
+- intensity evaluation;
+- probability calibration analysis;
+- context ablations.
+
+## Explicit non-goals
+
+- learned placement;
+- C++;
+- real storage;
+- sequence transformers;
+- multiscale prediction;
+- production online training.
+
+## Completion gate
+
+- Predictor beats simple non-contextual prediction baselines on controlled learnable workloads.
+- Activation probabilities are evaluated for calibration.
+- Intensity errors are analyzed separately.
+- Removing context materially affects performance when the workload is configured to contain contextual signal.
+- No hidden simulator variables enter model inputs.
+
+---
+
+# Milestone 4 — Simulated Predictive Placement
+
+**Status:** Not started
+
+## Objective
+
+Convert forecasts into record-level demand estimates and compare predictive placement with reactive cache policies under a controlled cost model.
+
+## Required capabilities
+
+- working-set-to-record demand projection;
+- variable-size byte-constrained fast tier;
+- expected-latency benefit calculation;
+- greedy predictive controller;
+- LRU baseline;
+- LFU or TinyLFU-style baseline;
+- size/cost-aware reactive baseline;
+- exact controller for small cases;
+- oracle future-demand controller;
+- frozen-trace policy replay.
+
+## Completion gate
+
+- Every policy receives identical traces and storage parameters.
+- Greedy, exact, and oracle modes are distinguishable.
+- Metrics include latency, hit rate, bytes moved, and transition-period regret.
+- At least one predictable abrupt-burst workload shows an opportunity for predictive improvement.
+- Random or uninformative workloads expose prediction overhead rather than artificial gains.
+
+---
+
+# Milestone 5 — Rigorous Evaluation and Error Analysis
+
+**Status:** Not started
+
+## Objective
+
+Determine when Prism wins, when it loses, and which components cause remaining regret.
+
+## Required capabilities
+
+- parameter sweeps over overlap, noise, context reliability, burst properties, scale, and capacity;
+- repeated seeded trials;
+- confidence intervals or uncertainty summaries;
+- calibration plots;
+- structural-recovery analysis;
+- activation and intensity error analysis;
+- system-weighted error analysis;
+- component oracle substitution;
+- exact-versus-greedy comparison.
+
+## Completion gate
+
+- Results are reproducible from checked-in configurations.
+- Conclusions distinguish predictive opportunity from predictor quality.
+- Important failures can be traced to slow learner, fast predictor, controller, migration cost, or lack of workload opportunity.
+- No result is reported from one favorable seed alone.
+
+---
+
+# Milestone 6 — C++ RAM/SSD Tiering Engine
+
+**Status:** Not started
+
+## Objective
+
+Build a real two-tier record engine using process RAM and a simple file-backed local SSD store.
+
+## Required capabilities
+
+- immutable variable-sized records;
+- authoritative slow-tier copies;
+- byte-constrained RAM cache;
+- metadata index;
+- real file reads;
+- promotion and eviction;
+- baseline policies;
+- deterministic controller interface;
+- timing and instrumentation;
+- C++ unit tests;
+- CMake build.
+
+## Explicit non-goals
+
+- PyTorch integration;
+- GPU memory;
+- distributed storage;
+- transactions;
+- dirty writeback;
+- RocksDB or database integration;
+- custom async-I/O frameworks.
+
+## Completion gate
+
+- Capacity invariants hold for variable-sized records.
+- Eviction never loses authoritative data.
+- Reads return correct bytes.
+- Real latency and movement metrics are captured.
+- Baseline policy behavior is tested.
+- The engine can replay a representative trace independently of Python ML.
+
+---
+
+# Milestone 7 — Python/C++ Integration
+
+**Status:** Not started
+
+## Objective
+
+Connect Python forecasting to the C++ tiering engine without placing Python inference on the foreground request path.
+
+## Required capabilities
+
+- thin pybind11 interface;
+- compact batched forecast updates;
+- asynchronous event collection;
+- forecast snapshots;
+- C++ placement worker;
+- end-to-end metrics;
+- integration tests.
+
+## Completion gate
+
+- Foreground reads do not call Python synchronously.
+- Forecast updates cross the boundary in batches.
+- Ownership and lifetimes across the boundary are documented and tested.
+- End-to-end runs combine Python prediction with real C++ RAM/SSD placement.
+- Prediction and migration overhead are measured.
+
+---
+
+# Milestone 8 — Open-Source LLM Simulator Integration
+
+**Status:** Not started
+
+## Objective
+
+Evaluate Prism inside an independently developed LLM inference simulation environment.
+
+## Required capabilities
+
+- adapter from simulator events to Prism’s generic event interface;
+- mapping from simulator cache objects to Prism records;
+- predictive and reactive placement comparisons;
+- simulator-native latency and throughput metrics;
+- no reconstruction of transformer or GPU execution simulation.
+
+## Completion gate
+
+- Prism operates without synthetic hidden labels.
+- Existing simulator policies and Prism receive equivalent workloads.
+- Integration does not require rewriting Prism’s core predictor/controller contract.
+- Results show whether the controlled-workload conclusions transfer.
+
+---
+
+# Milestone 9 — Real Heterogeneous Deployment
+
+**Status:** Not started
+
+## Objective
+
+Apply Prism to real inference state across GPU memory, CPU memory, and possibly local SSD.
+
+## Potential capabilities
+
+- real GPU-resident cache objects;
+- CPU/GPU transfer;
+- integration with an inference serving or cache framework;
+- real TTFT, throughput, and memory-pressure measurements;
+- concurrency and contention analysis.
+
+## Completion gate
+
+This milestone will be defined only after the LLM simulator integration exposes a specific and credible deployment target.
+
+---
+
+# Deferred Extensions
+
+These are not implementation milestones until evidence justifies them:
+
+- working-set drift;
+- persistent regime memory;
+- adaptive factor count;
+- factor splitting and merging;
+- multiscale prediction horizons;
+- temporal ordering inside working sets;
+- tail-aware or risk-sensitive objectives;
+- learned placement controller;
+- mutable records;
+- additional storage tiers;
+- quant or market-data workload integrations.
