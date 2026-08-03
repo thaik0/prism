@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, fields
 import json
 import math
+from numbers import Integral
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -81,7 +82,7 @@ class SimulationConfig:
         if not record_sizes:
             raise SimulationConfigError("source must contain at least one record")
         for size in record_sizes:
-            if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            if isinstance(size, bool) or not isinstance(size, Integral) or size <= 0:
                 raise SimulationConfigError(
                     "source record sizes must be positive integers"
                 )

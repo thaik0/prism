@@ -500,16 +500,17 @@ def _validate_replay_inputs(
     events = tuple(observable_events)
     demand = np.asarray(observable_demand)
     ids = tuple(int(value) for value in record_ids)
-    sizes = tuple(record_sizes)
+    raw_sizes = tuple(record_sizes)
     predictive = np.asarray(predicted_record_demand, dtype=np.float64)
     available = np.asarray(prediction_available, dtype=np.bool_)
     if demand.ndim != 2 or demand.shape[1] != len(ids):
         raise ReplayError("observable demand and record IDs are incompatible")
     if ids != tuple(sorted(ids)) or len(set(ids)) != len(ids):
         raise ReplayError("record IDs must be unique and ascending")
-    if len(sizes) != len(ids):
+    if len(raw_sizes) != len(ids):
         raise ReplayError("record sizes and IDs are incompatible")
-    config.validate_record_sizes(sizes)
+    config.validate_record_sizes(raw_sizes)
+    sizes = tuple(int(value) for value in raw_sizes)
     if predictive.shape != demand.shape or available.shape != (demand.shape[0],):
         raise ReplayError("predictive record demand has incompatible dimensions")
     if not 0 < validation_start < test_start < demand.shape[0]:

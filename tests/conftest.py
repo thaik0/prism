@@ -21,6 +21,9 @@ MILESTONE3_WORKLOAD_CONFIG_PATH = (
 MILESTONE3_PREDICTOR_CONFIG_PATH = (
     REPOSITORY_ROOT / "configs" / "milestone3_predictor.json"
 )
+MILESTONE4_SIMULATION_CONFIG_PATH = (
+    REPOSITORY_ROOT / "configs" / "milestone4_simulation.json"
+)
 
 
 def base_config_dict() -> dict[str, Any]:

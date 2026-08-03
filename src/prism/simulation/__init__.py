@@ -13,6 +13,12 @@ from prism.simulation.projection import (
     fit_record_demand_projection,
     project_record_demand,
 )
+from prism.simulation.persistence import (
+    SimulationInputError,
+    SimulationOutputDirectoryError,
+    SimulationRun,
+    run_simulated_evaluation,
+)
 from prism.simulation.replay import (
     POLICY_NAMES,
     PolicyReplayResult,
@@ -30,6 +36,9 @@ __all__ = [
     "PromotionEpisode",
     "SimulationConfig",
     "SimulationConfigError",
+    "SimulationInputError",
+    "SimulationOutputDirectoryError",
+    "SimulationRun",
     "StorageState",
     "exact_placement",
     "fit_record_demand_projection",
@@ -39,4 +48,5 @@ __all__ = [
     "ReplayError",
     "POLICY_NAMES",
     "run_policy_replay",
+    "run_simulated_evaluation",
 ]
