@@ -1,14 +1,14 @@
 # Prism
 
 Prism is a predictive storage-tiering research system. The current implementation
-includes **Milestone 1**, a controlled synthetic workload generator, and
-**Milestone 2**, a deterministic slow structural-recovery baseline. Milestone 2
-constructs raw demand windows, fits one nonnegative matrix factorization, and
-measures recovery of planted fuzzy working sets. The narrow Milestone 3
-prerequisite also plants and validates stochastic context-informed burst
-intensity; the predictor itself is not implemented.
+includes **Milestone 1**, a controlled synthetic workload generator;
+**Milestone 2**, a deterministic slow structural-recovery baseline; and
+**Milestone 3**, a deterministic next-window activation and conditional-intensity
+predictor. Milestone 3 fits structure on training windows only, freezes learned
+memberships, compares fixed recent-state and context-plus-state linear models,
+and evaluates calibration and three untouched-test scientific gates.
 
-No future activation prediction, cache, placement, storage-tier, or latency
+No record-demand forecast, cache, placement, storage-tier, controller, or latency
 behavior is implemented yet.
 
 ## Requirements
@@ -61,6 +61,22 @@ learned fuzzy memberships, and evaluates them against hidden truth only after
 fitting. It writes exactly `learner_config.json`, `demand_matrix.npz`,
 `learned_structure.npz`, and `recovery_report.json`.
 
+## Fit and evaluate the fast predictor
+
+After generating the dedicated source trace and passing its prerequisite gates:
+
+```bash
+PYTHONPATH=src python3 -m prism.predictor.cli \
+  --run-dir /tmp/prism_m3_predictor_source \
+  --structure-config configs/milestone2_representative.json \
+  --config configs/milestone3_predictor.json \
+  --output-dir /tmp/prism_milestone3_run
+```
+
+The command writes exactly `predictor_config.json`, `predictor_bundle.npz`,
+`predictions.npz`, and `evaluation_report.json`. Deployable arrays contain no
+hidden targets or planted identities.
+
 ## Python API
 
 ```python
@@ -104,3 +120,6 @@ generation model, schemas, engineering and scientific validation rules, and
 reproducibility contract. See [the Milestone 2 structural-recovery
 documentation](docs/structure_recovery.md) for demand construction, the fixed NMF
 baseline, recovery metrics, artifacts, limitations, and reproducibility.
+See [the Milestone 3 predictor documentation](docs/fast_predictor.md) for splits,
+features, fixed models, metrics, gates, artifacts, leakage protections, and
+limitations.

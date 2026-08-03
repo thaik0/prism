@@ -3,7 +3,7 @@
 ## Document status
 
 **Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 3 prerequisite — Context-Informative Burst Intensity
+**Current implementation phase:** Milestone 3 complete — Fast Activation and Conditional Intensity
 
 **Last major planning revision:** August 2026
 

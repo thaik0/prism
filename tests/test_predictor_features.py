@@ -83,6 +83,8 @@ def test_request_reconstruction_and_exact_factor_specific_features(tmp_path) -> 
     assert contexts[2].access_count == 3
     assert contexts[2].user_fractions.tolist() == [0.5, 0.5]
     assert contexts[2].request_type_fractions.tolist() == [0.5, 0.5]
+    assert contexts[0].user_fractions.tolist() == [1.0, 0.0]
+    assert contexts[0].request_type_fractions.tolist() == [0.0, 1.0]
 
     X = np.zeros((8, 2), dtype=np.int64)
     for event in events:
@@ -142,3 +144,26 @@ def test_inconsistent_request_metadata_is_rejected(tmp_path) -> None:
 
     with pytest.raises(PredictorFeatureError, match="request.*inconsistent"):
         reconstruct_window_context(source, _source_config())
+
+
+def test_zero_request_window_has_zero_fractions_and_deterministic_warning(
+    tmp_path,
+) -> None:
+    source = tmp_path / "source"
+    events = _write_events(source)
+    events = [event for event in events if event["window_id"] != 4]
+    (source / "observable_events.jsonl").write_text(
+        "".join(json.dumps(event, sort_keys=True) + "\n" for event in events),
+        encoding="utf-8",
+    )
+
+    contexts, _, _, warnings = reconstruct_window_context(source, _source_config())
+
+    assert contexts[4].session_count == 0
+    assert contexts[4].request_count == 0
+    assert contexts[4].access_count == 0
+    assert contexts[4].user_fractions.tolist() == [0.0, 0.0]
+    assert contexts[4].request_type_fractions.tolist() == [0.0, 0.0]
+    assert warnings == (
+        "window 4 has zero observable requests; context fractions are zero",
+    )

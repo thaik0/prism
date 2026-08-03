@@ -456,3 +456,32 @@ The following are postponed unless evidence justifies them:
 **Rationale**
 
 The project’s value comes from testing the predictive-tiering thesis, not from maximizing the number of technologies used.
+
+---
+
+## D022 — Initial fast predictor baseline
+
+**Status:** Accepted
+
+**Decision**
+
+The first fast predictor uses one-window chronological targets, training-only
+frozen NMF memberships, per-factor constant baselines, two shared fixed logistic
+regressions, and one shared fixed ridge regression. Context is represented by
+factor-specific user and request-type fraction blocks. Hidden simulator truth is
+limited to controlled matching, labels, and evaluation.
+
+**Rationale**
+
+Fixed linear models directly test whether recent learned-factor demand predicts
+transitions and whether observable context adds signal without model selection or
+test-driven complexity. Separating activation probability from conditional
+intensity preserves the accepted forecasting contract and makes calibration and
+error sources auditable.
+
+**Consequences and limitations**
+
+The controlled labels are not available for real traces, and the current model
+does not use session history, operation type, multiple horizons, online updates,
+neural architectures, record-level projection, or placement. Those capabilities
+remain deferred until a later milestone or measured limitation justifies them.

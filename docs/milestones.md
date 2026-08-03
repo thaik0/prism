@@ -2,9 +2,9 @@
 
 ## Current status
 
-**Current milestone:** Milestone 3 prerequisite — Context-Informative Burst Intensity
+**Current milestone:** Milestone 3 — Fast Activation and Intensity Predictor
 
-**Project stage:** Prerequisite implemented and verified; predictor not started
+**Project stage:** Milestone 3 implemented and verified
 
 A milestone is complete only when:
 
@@ -136,12 +136,11 @@ Transform access traces into demand matrices and learn fuzzy latent working sets
 
 # Milestone 3 — Fast Activation and Intensity Predictor
 
-**Status:** Not started
+**Status:** Complete
 
-**Prerequisite status:** Complete. A dedicated longer controlled trace now plants
+**Prerequisite status:** Complete. The dedicated longer controlled trace plants
 and scientifically validates stochastic context-informed burst intensity while
-preserving the Milestone 1 and Milestone 2 contracts. No predictor behavior is
-included in the prerequisite.
+preserving the Milestone 1 and Milestone 2 contracts.
 
 ## Objective
 
@@ -150,10 +149,10 @@ Predict near-future working-set activation probability and conditional intensity
 ## Required capabilities
 
 - model-visible contextual feature construction;
-- one fixed configurable prediction horizon;
+- one fixed one-window prediction horizon;
 - activation targets;
 - conditional intensity targets;
-- simple PyTorch model or models;
+- fixed scikit-learn logistic and ridge models;
 - train/validation/test splitting that avoids leakage;
 - activation evaluation;
 - intensity evaluation;
@@ -176,6 +175,9 @@ Predict near-future working-set activation probability and conditional intensity
 - Intensity errors are analyzed separately.
 - Removing context materially affects performance when the workload is configured to contain contextual signal.
 - No hidden simulator variables enter model inputs.
+- NMF, preprocessing, and supervised models are fit only on training populations.
+- All three strict untouched-test scientific gates pass on the dedicated trace.
+- Repeated complete runs produce byte-identical four-artifact outputs.
 
 ---
 
