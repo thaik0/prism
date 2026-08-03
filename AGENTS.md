@@ -12,6 +12,8 @@ Implement only the milestone explicitly requested in the task prompt. Do not bui
 
 Prefer the smallest complete, tested implementation that validates the current milestone.
 
+Also, please push changes at reasonable points within each milestone, for verification.
+
 ## Core architectural constraints
 
 - ML predicts demand; it does not directly choose storage actions.

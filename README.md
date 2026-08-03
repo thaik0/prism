@@ -1,19 +1,23 @@
 # Prism
 
 Prism is a predictive storage-tiering research system. The current implementation
-is limited to **Milestone 1**, a controlled synthetic workload generator. It
-creates deterministic observable record-access traces and structurally separate
-simulator-only ground truth for later research milestones.
+includes **Milestone 1**, a controlled synthetic workload generator, and
+**Milestone 2**, a deterministic slow structural-recovery baseline. Milestone 2
+constructs raw demand windows, fits one nonnegative matrix factorization, and
+measures recovery of planted fuzzy working sets.
 
-No learning, prediction, cache, placement, storage-tier, or latency behavior is
-implemented yet.
+No future activation prediction, cache, placement, storage-tier, or latency
+behavior is implemented yet.
 
 ## Requirements
 
 - Python 3.11 or newer
+- NumPy
+- SciPy
+- scikit-learn
 - pytest, for development tests
 
-The generator has no third-party runtime dependencies.
+The Milestone 1 generator itself remains standard-library-only.
 
 ## Generate the representative workload
 
@@ -37,6 +41,23 @@ summary.json
 `observable_events.jsonl` is the model-plausible access history. Configuration is
 experiment metadata, while `hidden_ground_truth.json` is strictly simulator-only
 and must never be used as predictor input.
+
+## Recover slow working-set structure
+
+After generating and validating a source trace:
+
+```bash
+PYTHONPATH=src python3 -m prism.structure.cli \
+  --run-dir /tmp/prism_milestone1_run \
+  --config configs/milestone2_representative.json \
+  --output-dir /tmp/prism_milestone2_run
+```
+
+The learner counts raw accesses in every configured window and record, fits one
+fixed deterministic scikit-learn NMF with supplied factor count `K`, normalizes
+learned fuzzy memberships, and evaluates them against hidden truth only after
+fitting. It writes exactly `learner_config.json`, `demand_matrix.npz`,
+`learned_structure.npz`, and `recovery_report.json`.
 
 ## Python API
 
@@ -75,4 +96,6 @@ python3 -m pytest -q
 
 See [the Milestone 1 workload documentation](docs/workload_generator.md) for the
 generation model, schemas, engineering and scientific validation rules, and
-reproducibility contract.
+reproducibility contract. See [the Milestone 2 structural-recovery
+documentation](docs/structure_recovery.md) for demand construction, the fixed NMF
+baseline, recovery metrics, artifacts, limitations, and reproducibility.

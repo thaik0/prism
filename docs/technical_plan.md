@@ -3,7 +3,8 @@
 ## Document status
 
 **Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 1 — Controlled Workload Generator  
+**Current implementation phase:** Milestone 2 — Demand Windows and Slow Structural Recovery
+
 **Last major planning revision:** August 2026
 
 This document is Prism’s architectural source of truth.

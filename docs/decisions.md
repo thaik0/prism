@@ -110,13 +110,14 @@ Strict clustering would lose this structure.
 
 ## D006 — Initial slow learner family
 
-**Status:** Provisional
+**Status:** Accepted
 
 **Decision**
 
-The first slow learner should use a simple interpretable matrix-factorization approach, likely nonnegative factorization.
-
-The exact algorithm will be selected during the slow-learner milestone.
+The first slow learner uses one deterministic scikit-learn nonnegative matrix
+factorization of raw window-by-record access counts. The controlled experiment
+supplies the planted factor count and uses fixed NNDSVDa initialization,
+coordinate descent, and Frobenius loss.
 
 **Rationale**
 
@@ -127,7 +128,8 @@ Factorization naturally represents:
 - overlapping demand patterns,
 - a compact latent dimension.
 
-More complex graph or neural approaches are postponed until a simple model exposes a concrete limitation.
+More complex preprocessing, model selection, graph, or neural approaches are
+postponed until this measured baseline exposes a concrete limitation.
 
 ---
 

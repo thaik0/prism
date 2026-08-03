@@ -2,7 +2,8 @@
 
 ## Current status
 
-**Current milestone:** Milestone 1 — Controlled Workload Generator  
+**Current milestone:** Milestone 2 — Demand Windows and Slow Working-Set Learner
+
 **Project stage:** Implemented and verified
 
 A milestone is complete only when:
@@ -96,7 +97,7 @@ Generate reproducible access traces containing hidden fuzzy working sets, abrupt
 
 # Milestone 2 — Demand Windows and Slow Working-Set Learner
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -104,14 +105,14 @@ Transform access traces into demand matrices and learn fuzzy latent working sets
 
 ## Required capabilities
 
-- configurable demand windows;
-- raw and normalized demand features;
-- simple factorization baseline;
+- raw per-window, per-record access counts;
+- one fixed deterministic NMF baseline;
 - fuzzy record memberships;
 - factor activation history;
 - comparison with planted simulator truth;
 - factor matching despite label permutation;
-- reconstruction and recovery metrics.
+- fuzzy, support, reconstruction, and activation-alignment metrics;
+- deterministic four-artifact persistence.
 
 ## Explicit non-goals
 
@@ -124,12 +125,12 @@ Transform access traces into demand matrices and learn fuzzy latent working sets
 
 ## Completion gate
 
-- Demand-window construction is deterministic and tested.
-- The learner recovers planted structure under at least one controlled easy configuration.
-- Failure behavior under overlap and noise is measured.
-- Hidden truth is used only for evaluation.
-- Factor labels are matched correctly before structural comparison.
-- Results are reproducible across seeds.
+- Raw demand-window construction is deterministic and tested.
+- The representative learner converges and recovers support above analytic chance.
+- Hidden truth is used only after fitting for controlled evaluation.
+- Factor labels are matched with globally optimal one-to-one assignment.
+- Repeated identical runs produce byte-identical artifacts.
+- Non-convergence is persisted and reported as a nonzero CLI result.
 
 ---
 

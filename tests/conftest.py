@@ -12,6 +12,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 REPRESENTATIVE_CONFIG_PATH = (
     REPOSITORY_ROOT / "configs" / "milestone1_representative.json"
 )
+REPRESENTATIVE_STRUCTURE_CONFIG_PATH = (
+    REPOSITORY_ROOT / "configs" / "milestone2_representative.json"
+)
 
 
 def base_config_dict() -> dict[str, Any]:
