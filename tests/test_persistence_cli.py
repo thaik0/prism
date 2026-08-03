@@ -56,6 +56,21 @@ def test_persistence_is_byte_deterministic_and_parseable(tmp_path, make_config) 
     assert all(set(event) == OBSERVABLE_EVENT_FIELDS for event in events)
 
 
+def test_omitted_and_explicit_zero_context_weight_are_byte_identical(
+    tmp_path, make_config
+) -> None:
+    omitted = make_config(seed=73)
+    explicit = make_config(seed=73, burst_intensity_context_weight=0.0)
+    output_omitted = tmp_path / "omitted"
+    output_explicit = tmp_path / "explicit"
+
+    persist_workload(generate_workload(omitted), output_omitted)
+    persist_workload(generate_workload(explicit), output_explicit)
+
+    assert omitted == explicit
+    assert _artifact_bytes(output_omitted) == _artifact_bytes(output_explicit)
+
+
 def test_nonempty_output_directory_is_rejected(tmp_path, make_config) -> None:
     destination = tmp_path / "occupied"
     destination.mkdir()

@@ -67,6 +67,25 @@ def calculate_activation_probabilities(
     return contextual_probability, activation_probability
 
 
+def _sample_burst_intensity(
+    rng: random.Random,
+    intensity_min: float,
+    intensity_max: float,
+    context_weight: float,
+    previous_window_precursor_score: float,
+) -> float:
+    """Blend one random draw with intensity implied by prior-window context."""
+
+    random_intensity = rng.uniform(intensity_min, intensity_max)
+    context_implied_intensity = intensity_min + previous_window_precursor_score * (
+        intensity_max - intensity_min
+    )
+    return (
+        context_weight * context_implied_intensity
+        + (1.0 - context_weight) * random_intensity
+    )
+
+
 def generate_workload(config: WorkloadConfig) -> WorkloadResult:
     """Generate one complete deterministic workload from an explicit seed."""
 
@@ -149,9 +168,12 @@ def generate_workload(config: WorkloadConfig) -> WorkloadResult:
                     start_window=window_id,
                     sampled_duration_windows=duration,
                     end_window_exclusive=window_id + duration,
-                    intensity=rng.uniform(
+                    intensity=_sample_burst_intensity(
+                        rng,
                         config.burst_intensity_min,
                         config.burst_intensity_max,
+                        config.burst_intensity_context_weight,
+                        previous_precursor_scores[working_set_id],
                     ),
                 )
                 bursts.append(burst)

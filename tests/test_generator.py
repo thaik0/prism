@@ -9,6 +9,7 @@ import pytest
 from prism.workload import generate_workload
 from prism.workload.generator import (
     _sample_access_source_and_record,
+    _sample_burst_intensity,
     _weighted_index,
     calculate_activation_probabilities,
 )
@@ -181,6 +182,92 @@ def test_nonzero_precursor_can_remain_probabilistic() -> None:
 
     assert contextual > 0.0
     assert 0.1 < combined < 1.0
+
+
+class _UniformSpy:
+    def __init__(self, value: float) -> None:
+        self.value = value
+        self.calls: list[tuple[float, float]] = []
+
+    def uniform(self, lower: float, upper: float) -> float:
+        self.calls.append((lower, upper))
+        return self.value
+
+
+@pytest.mark.parametrize(
+    ("alpha", "score", "random_intensity", "expected"),
+    [
+        (0.0, 0.0, 3.25, 3.25),
+        (0.0, 1.0, 3.25, 3.25),
+        (1.0, 0.0, 3.25, 1.0),
+        (1.0, 1.0, 3.25, 5.0),
+        (0.6, 0.25, 3.25, 0.6 * 2.0 + 0.4 * 3.25),
+    ],
+)
+def test_context_informed_intensity_uses_exactly_one_random_draw(
+    alpha: float,
+    score: float,
+    random_intensity: float,
+    expected: float,
+) -> None:
+    rng = _UniformSpy(random_intensity)
+
+    intensity = _sample_burst_intensity(rng, 1.0, 5.0, alpha, score)
+
+    assert intensity == pytest.approx(expected)
+    assert 1.0 <= intensity <= 5.0
+    assert rng.calls == [(1.0, 5.0)]
+
+
+def test_zero_context_weight_returns_original_random_intensity_exactly() -> None:
+    rng = _UniformSpy(3.25)
+
+    assert _sample_burst_intensity(rng, 1.0, 5.0, 0.0, 0.7) == 3.25
+
+
+def test_failed_activations_do_not_sample_intensity(make_config, monkeypatch) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    def fail_if_called(*args: object) -> float:
+        calls.append(args)
+        raise AssertionError("failed activation sampled an intensity")
+
+    monkeypatch.setattr(
+        "prism.workload.generator._sample_burst_intensity", fail_if_called
+    )
+    result = generate_workload(
+        make_config(
+            spontaneous_activation_probability=0.0,
+            precursor_probability_scale=0.0,
+        )
+    )
+
+    assert result.summary.total_bursts == 0
+    assert calls == []
+
+
+def test_full_context_weight_uses_previous_window_score(make_config) -> None:
+    result = generate_workload(
+        make_config(
+            num_windows=3,
+            num_working_sets=1,
+            spontaneous_activation_probability=1.0,
+            burst_duration_min_windows=1,
+            burst_duration_max_windows=1,
+            burst_intensity_min=1.0,
+            burst_intensity_max=5.0,
+            burst_intensity_context_weight=1.0,
+        )
+    )
+    trials_by_burst = {
+        trial.created_burst_id: trial
+        for trial in result.hidden_ground_truth.activation_trials
+        if trial.activated
+    }
+
+    for burst in result.hidden_ground_truth.bursts:
+        score = trials_by_burst[burst.burst_id].previous_window_precursor_score
+        assert burst.intensity == 1.0 + score * 4.0
 
 
 def test_one_window_delay_and_guaranteed_true_precursor(make_config) -> None:

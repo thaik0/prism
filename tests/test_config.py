@@ -20,6 +20,16 @@ def test_valid_config_is_canonicalized() -> None:
     assert list(config.operation_type_probabilities) == ["read", "write"]
     assert config.operation_type_probabilities == {"read": 0.8, "write": 0.2}
     assert config.to_dict()["request_types"] == ["interactive", "batch"]
+    assert config.burst_intensity_context_weight == 0.0
+    assert config.to_dict()["burst_intensity_context_weight"] == 0.0
+
+
+@pytest.mark.parametrize("value", [0.0, 0.6, 1.0])
+def test_burst_intensity_context_weight_accepts_unit_interval(value: float) -> None:
+    raw = base_config_dict()
+    raw["burst_intensity_context_weight"] = value
+
+    assert WorkloadConfig.from_dict(raw).burst_intensity_context_weight == value
 
 
 def test_missing_and_unknown_fields_are_rejected() -> None:
@@ -61,6 +71,26 @@ def test_missing_and_unknown_fields_are_rejected() -> None:
         ),
         ({"spontaneous_activation_probability": 1.1}, "spontaneous"),
         ({"precursor_probability_scale": -0.1}, "precursor"),
+        (
+            {"burst_intensity_context_weight": -0.1},
+            "burst_intensity_context_weight",
+        ),
+        (
+            {"burst_intensity_context_weight": 1.1},
+            "burst_intensity_context_weight",
+        ),
+        (
+            {"burst_intensity_context_weight": True},
+            "burst_intensity_context_weight",
+        ),
+        (
+            {"burst_intensity_context_weight": math.nan},
+            "burst_intensity_context_weight.*finite",
+        ),
+        (
+            {"burst_intensity_context_weight": math.inf},
+            "burst_intensity_context_weight.*finite",
+        ),
         ({"burst_intensity_min": 0.0}, "burst_intensity_min"),
         ({"burst_duration_min_windows": 0}, "burst_duration_min_windows"),
         (

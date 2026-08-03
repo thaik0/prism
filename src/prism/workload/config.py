@@ -46,6 +46,7 @@ class WorkloadConfig:
     burst_access_weight: float
     baseline_access_weight: float
     noise_access_weight: float
+    burst_intensity_context_weight: float = 0.0
 
     def __post_init__(self) -> None:
         _require_integer("seed", self.seed)
@@ -128,6 +129,7 @@ class WorkloadConfig:
         probability_fields = (
             "spontaneous_activation_probability",
             "precursor_probability_scale",
+            "burst_intensity_context_weight",
         )
         for name in probability_fields:
             value = _require_number(name, getattr(self, name), minimum=0.0, maximum=1.0)
@@ -168,7 +170,8 @@ class WorkloadConfig:
 
         expected = {field.name for field in fields(cls)}
         supplied = set(raw)
-        missing = sorted(expected - supplied)
+        optional_defaults = {"burst_intensity_context_weight": 0.0}
+        missing = sorted(expected - supplied - set(optional_defaults))
         unknown = sorted(supplied - expected)
         if missing:
             raise WorkloadConfigError(
@@ -179,7 +182,8 @@ class WorkloadConfig:
                 f"unknown configuration fields: {', '.join(unknown)}"
             )
 
-        return cls(**dict(raw))
+        resolved = {**optional_defaults, **dict(raw)}
+        return cls(**resolved)
 
     @classmethod
     def from_json(cls, path: str | Path) -> WorkloadConfig:

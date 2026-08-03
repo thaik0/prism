@@ -72,6 +72,26 @@ opportunities. A nonzero precursor can fail, and a zero precursor can still be
 followed by a spontaneous burst. Active sets do not receive activation trials and
 can retrigger only after expiration.
 
+For a successful activation, one intensity is sampled from the same run-owned
+RNG and blended with the activation trial's previous-window precursor score:
+
+```text
+context_implied_intensity =
+    burst_intensity_min
+    + previous_window_precursor_score
+      * (burst_intensity_max - burst_intensity_min)
+
+sampled_intensity =
+    burst_intensity_context_weight * context_implied_intensity
+    + (1 - burst_intensity_context_weight)
+      * Uniform(burst_intensity_min, burst_intensity_max)
+```
+
+The context weight is in `[0, 1]` and defaults to `0.0` when omitted. Zero
+therefore preserves the original random-intensity mechanism, while intermediate
+values plant an informative but stochastic conditional-intensity signal. Failed
+activations do not draw an intensity.
+
 ## Sessions, requests, and accesses
 
 Every session belongs to one window and selects one user uniformly. Requests in a
@@ -166,6 +186,7 @@ Every field is required. Unknown fields and likely typos are rejected.
 | `precursor_probability_scale` | Context scaling factor in `[0, 1]`. |
 | `burst_duration_min_windows`, `burst_duration_max_windows` | Inclusive positive integer duration bounds. |
 | `burst_intensity_min`, `burst_intensity_max` | Inclusive positive intensity bounds. |
+| `burst_intensity_context_weight` | Prior-window context blend in `[0, 1]`; optional and resolved to `0.0` when omitted. |
 | `burst_access_weight` | Nonnegative active-burst source multiplier. |
 | `baseline_access_weight` | Nonnegative baseline source weight. |
 | `noise_access_weight` | Nonnegative noise source weight. |
