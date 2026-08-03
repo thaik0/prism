@@ -166,6 +166,30 @@ def run_predictor_experiment(
             ),
             "matching_and_recovery": targets.matching_report,
         },
+        "training_baselines": {
+            "activation_base_rates": [
+                {
+                    "learned_factor_id": factor_id,
+                    "training_activation_base_rate": float(base_rate),
+                }
+                for factor_id, base_rate in enumerate(
+                    predictor.activation_base_rates
+                )
+            ],
+            "conditional_intensity_means": [
+                {
+                    "learned_factor_id": factor_id,
+                    "factor_specific_available": bool(
+                        predictor.intensity_factor_available[factor_id]
+                    ),
+                    "training_conditional_mean": float(mean),
+                }
+                for factor_id, mean in enumerate(
+                    predictor.intensity_factor_means
+                )
+            ],
+            "global_conditional_mean_fallback": predictor.global_intensity_mean,
+        },
         **evaluation.report,
     }
     combined_warnings = list(report["warnings"])
@@ -236,7 +260,6 @@ def _write_bundle(
         intensity_ridge_intercept=intensity.intercept,
         activation_base_rates=predictor.activation_base_rates,
         intensity_factor_means=predictor.intensity_factor_means,
-        intensity_factor_available=predictor.intensity_factor_available,
         global_intensity_mean=np.asarray([predictor.global_intensity_mean]),
         user_ids=dataset.user_ids,
         request_types=np.asarray(dataset.request_types),
