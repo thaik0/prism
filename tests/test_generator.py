@@ -17,9 +17,18 @@ from prism.workload.models import Burst, OBSERVABLE_EVENT_FIELDS
 
 def test_in_memory_determinism_and_distinct_fixed_seeds(make_config) -> None:
     config = make_config(seed=19)
+    first = generate_workload(config)
+    repeated = generate_workload(config)
+    different_seed = generate_workload(make_config(seed=20))
 
-    assert generate_workload(config) == generate_workload(config)
-    assert generate_workload(config) != generate_workload(make_config(seed=20))
+    assert first == repeated
+    assert (
+        first.observable_events != different_seed.observable_events
+        or first.hidden_ground_truth.record_sizes_bytes
+        != different_seed.hidden_ground_truth.record_sizes_bytes
+        or first.hidden_ground_truth.working_set_memberships
+        != different_seed.hidden_ground_truth.working_set_memberships
+    )
 
 
 def test_observable_schema_ordering_ids_and_record_contract(make_config) -> None:

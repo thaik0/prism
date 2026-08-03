@@ -1,5 +1,7 @@
 # Milestone 1 Execution Plan
 
+**Status:** Complete
+
 ## Scope
 
 Implement only the controlled, reproducible Python workload generator described in

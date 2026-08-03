@@ -3,7 +3,7 @@
 ## Current status
 
 **Current milestone:** Milestone 1 — Controlled Workload Generator  
-**Project stage:** Planning complete; implementation not yet started
+**Project stage:** Implemented and verified
 
 A milestone is complete only when:
 
@@ -45,7 +45,7 @@ Create the minimal repository structure and instructions required for reliable m
 
 # Milestone 1 — Controlled Workload Generator
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
