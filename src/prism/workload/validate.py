@@ -64,6 +64,14 @@ class WorkloadValidationResult:
             ]
         )
 
+    @property
+    def intensity_signal_passed(self) -> bool:
+        return bool(
+            self.report["intensity_predictability"]["signal_gate"][
+                "all_required_conditions_passed"
+            ]
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return self.report
 
@@ -129,6 +137,9 @@ def validate_workload_run(run_dir: str | Path) -> WorkloadValidationResult:
         config, hidden, warnings
     )
     burst_diversity = _burst_diversity_diagnostics(config, hidden, warnings)
+    intensity_predictability = _intensity_predictability_diagnostics(
+        config, hidden, warnings
+    )
     demand_decomposition = _demand_decomposition_diagnostics(
         validated, warnings
     )
@@ -155,6 +166,7 @@ def validate_workload_run(run_dir: str | Path) -> WorkloadValidationResult:
         "context_signal": context_signal,
         "working_set_structure": working_set_structure,
         "burst_diversity": burst_diversity,
+        "intensity_predictability": intensity_predictability,
         "demand_decomposition": demand_decomposition,
         "observable_associations": observable_associations,
         "warnings": warnings,
@@ -1134,6 +1146,339 @@ def _burst_diversity_diagnostics(
     }
 
 
+def _intensity_predictability_diagnostics(
+    config: WorkloadConfig,
+    hidden: dict[str, Any],
+    warnings: list[str],
+) -> dict[str, Any]:
+    """Diagnose the planted conditional-intensity signal at burst starts."""
+
+    successful_trials = [
+        trial for trial in hidden["activation_trials"] if trial["activated"]
+    ]
+    burst_count_by_working_set = [0] * config.num_working_sets
+    scores: list[float] = []
+    intensities: list[float] = []
+    expected_intensities: list[float] = []
+    random_intensity_mean = (
+        config.burst_intensity_min + config.burst_intensity_max
+    ) / 2.0
+    for trial in successful_trials:
+        burst = hidden["bursts"][trial["created_burst_id"]]
+        score = trial["previous_window_precursor_score"]
+        context_implied_intensity = config.burst_intensity_min + score * (
+            config.burst_intensity_max - config.burst_intensity_min
+        )
+        expected_intensity = (
+            config.burst_intensity_context_weight * context_implied_intensity
+            + (1.0 - config.burst_intensity_context_weight)
+            * random_intensity_mean
+        )
+        burst_count_by_working_set[trial["working_set_id"]] += 1
+        scores.append(score)
+        intensities.append(burst["intensity"])
+        expected_intensities.append(expected_intensity)
+
+    precursor_summary = _descriptive_statistics_with_standard_deviation(scores)
+    intensity_summary = _descriptive_statistics_with_standard_deviation(
+        intensities
+    )
+    correlation = _pearson_correlation(
+        scores,
+        intensities,
+        "precursor score and sampled intensity Pearson correlation",
+        warnings,
+    )
+    planted_mae, planted_rmse = _error_metrics(
+        intensities,
+        expected_intensities,
+        "planted-expectation error",
+        warnings,
+    )
+    observed_mean = intensity_summary["mean"]
+    constant_predictions = (
+        [observed_mean] * len(intensities) if observed_mean is not None else []
+    )
+    constant_mae, constant_rmse = _error_metrics(
+        intensities,
+        constant_predictions,
+        "constant-observed-mean baseline error",
+        warnings,
+    )
+    residuals = [
+        observed - expected
+        for observed, expected in zip(
+            intensities, expected_intensities, strict=True
+        )
+    ]
+    residual_standard_deviation = (
+        statistics.pstdev(residuals) if residuals else None
+    )
+    if not residuals:
+        _add_warning(
+            warnings,
+            "planted-expectation residual standard deviation is undefined because there are no burst starts",
+        )
+    quartiles = _intensity_quartile_comparison(scores, intensities, warnings)
+
+    report = {
+        "configuration": {
+            "burst_intensity_min": config.burst_intensity_min,
+            "burst_intensity_max": config.burst_intensity_max,
+            "burst_intensity_context_weight": (
+                config.burst_intensity_context_weight
+            ),
+            "random_intensity_mean": random_intensity_mean,
+        },
+        "burst_start_count": len(successful_trials),
+        "burst_start_count_by_working_set": [
+            {"working_set_id": working_set_id, "burst_start_count": count}
+            for working_set_id, count in enumerate(burst_count_by_working_set)
+        ],
+        "precursor_score_summary": precursor_summary,
+        "sampled_intensity_summary": intensity_summary,
+        "distinct_precursor_score_count": len(set(scores)),
+        "pearson_correlation": correlation,
+        "planted_expectation_error": {
+            "mae": planted_mae,
+            "rmse": planted_rmse,
+        },
+        "constant_observed_mean_baseline": {
+            "mean_intensity": observed_mean,
+            "mae": constant_mae,
+            "rmse": constant_rmse,
+        },
+        "improvement_over_constant_observed_mean": {
+            "mae": (
+                constant_mae - planted_mae
+                if constant_mae is not None and planted_mae is not None
+                else None
+            ),
+            "rmse": (
+                constant_rmse - planted_rmse
+                if constant_rmse is not None and planted_rmse is not None
+                else None
+            ),
+        },
+        "residual_standard_deviation": residual_standard_deviation,
+        "quartile_intensity_comparison": quartiles,
+    }
+    report["signal_gate"] = _intensity_signal_checks(report)
+    return report
+
+
+def _intensity_signal_checks(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Evaluate the fixed scientific gate without configurable thresholds."""
+
+    weight = report["configuration"]["burst_intensity_context_weight"]
+    precursor_standard_deviation = report["precursor_score_summary"][
+        "standard_deviation"
+    ]
+    intensity_standard_deviation = report["sampled_intensity_summary"][
+        "standard_deviation"
+    ]
+    correlation = report["pearson_correlation"]
+    planted = report["planted_expectation_error"]
+    constant = report["constant_observed_mean_baseline"]
+    residual_standard_deviation = report["residual_standard_deviation"]
+    quartiles = report["quartile_intensity_comparison"]
+
+    checks = {
+        "context_weight_strictly_between_zero_and_one": {
+            "value": weight,
+            "passed": 0.0 < weight < 1.0,
+        },
+        "at_least_two_distinct_precursor_scores": {
+            "value": report["distinct_precursor_score_count"],
+            "passed": report["distinct_precursor_score_count"] >= 2,
+        },
+        "nonzero_precursor_score_variance": {
+            "standard_deviation": precursor_standard_deviation,
+            "passed": (
+                precursor_standard_deviation is not None
+                and precursor_standard_deviation > 0.0
+            ),
+        },
+        "nonzero_sampled_intensity_variance": {
+            "standard_deviation": intensity_standard_deviation,
+            "passed": (
+                intensity_standard_deviation is not None
+                and intensity_standard_deviation > 0.0
+            ),
+        },
+        "positive_pearson_correlation": {
+            "value": correlation,
+            "passed": correlation is not None and correlation > 0.0,
+        },
+        "planted_mae_lower_than_constant_mean_mae": {
+            "planted_mae": planted["mae"],
+            "constant_mean_mae": constant["mae"],
+            "passed": (
+                planted["mae"] is not None
+                and constant["mae"] is not None
+                and planted["mae"] < constant["mae"]
+            ),
+        },
+        "planted_rmse_lower_than_constant_mean_rmse": {
+            "planted_rmse": planted["rmse"],
+            "constant_mean_rmse": constant["rmse"],
+            "passed": (
+                planted["rmse"] is not None
+                and constant["rmse"] is not None
+                and planted["rmse"] < constant["rmse"]
+            ),
+        },
+        "positive_residual_standard_deviation": {
+            "value": residual_standard_deviation,
+            "passed": (
+                residual_standard_deviation is not None
+                and residual_standard_deviation > 0.0
+            ),
+        },
+        "upper_quartile_mean_above_lower_quartile_mean": {
+            "lower_mean_intensity": quartiles["lower_mean_intensity"],
+            "upper_mean_intensity": quartiles["upper_mean_intensity"],
+            "passed": (
+                quartiles["lower_mean_intensity"] is not None
+                and quartiles["upper_mean_intensity"] is not None
+                and quartiles["upper_mean_intensity"]
+                > quartiles["lower_mean_intensity"]
+            ),
+        },
+    }
+    return {
+        "checks": checks,
+        "all_required_conditions_passed": all(
+            check["passed"] for check in checks.values()
+        ),
+    }
+
+
+def _descriptive_statistics_with_standard_deviation(
+    values: Sequence[int | float],
+) -> dict[str, Any]:
+    return {
+        **_descriptive_statistics(values),
+        "standard_deviation": statistics.pstdev(values) if values else None,
+    }
+
+
+def _pearson_correlation(
+    left: Sequence[float],
+    right: Sequence[float],
+    metric_name: str,
+    warnings: list[str],
+) -> float | None:
+    if len(left) != len(right):
+        raise ValueError("Pearson inputs must have equal length")
+    if len(left) < 2:
+        _add_warning(
+            warnings,
+            f"{metric_name} is undefined because fewer than 2 observations are available",
+        )
+        return None
+    left_mean = math.fsum(left) / len(left)
+    right_mean = math.fsum(right) / len(right)
+    left_deviations = [value - left_mean for value in left]
+    right_deviations = [value - right_mean for value in right]
+    left_squared = math.fsum(value * value for value in left_deviations)
+    right_squared = math.fsum(value * value for value in right_deviations)
+    if left_squared == 0.0 or right_squared == 0.0:
+        _add_warning(
+            warnings,
+            f"{metric_name} is undefined because at least one input has zero variance",
+        )
+        return None
+    raw = math.fsum(
+        left_value * right_value
+        for left_value, right_value in zip(
+            left_deviations, right_deviations, strict=True
+        )
+    ) / math.sqrt(left_squared * right_squared)
+    return min(1.0, max(-1.0, raw))
+
+
+def _error_metrics(
+    observed: Sequence[float],
+    predicted: Sequence[float],
+    metric_name: str,
+    warnings: list[str],
+) -> tuple[float | None, float | None]:
+    if len(observed) != len(predicted):
+        raise ValueError("error-metric inputs must have equal length")
+    if not observed:
+        _add_warning(
+            warnings,
+            f"{metric_name} is undefined because there are no burst starts",
+        )
+        return None, None
+    errors = [
+        actual - estimate
+        for actual, estimate in zip(observed, predicted, strict=True)
+    ]
+    mae = math.fsum(abs(error) for error in errors) / len(errors)
+    rmse = math.sqrt(
+        math.fsum(error * error for error in errors) / len(errors)
+    )
+    return mae, rmse
+
+
+def _intensity_quartile_comparison(
+    scores: Sequence[float],
+    intensities: Sequence[float],
+    warnings: list[str],
+) -> dict[str, Any]:
+    result = {
+        "method": "statistics.quantiles(scores, n=4, method='inclusive') across burst starts",
+        "lower_rule": "score <= Q1",
+        "upper_rule": "score >= Q3",
+        "q1": None,
+        "q3": None,
+        "lower_count": 0,
+        "upper_count": 0,
+        "lower_mean_intensity": None,
+        "upper_mean_intensity": None,
+        "upper_minus_lower_mean_intensity": None,
+    }
+    if len(scores) < 2:
+        _add_warning(
+            warnings,
+            "burst-start intensity quartiles are undefined because fewer than 2 burst starts are available",
+        )
+        return result
+    q1, _, q3 = statistics.quantiles(scores, n=4, method="inclusive")
+    result["q1"] = q1
+    result["q3"] = q3
+    if q1 == q3:
+        _add_warning(
+            warnings,
+            f"burst-start intensity quartiles are undefined because precursor variation is degenerate: Q1=Q3={q1}",
+        )
+        return result
+    lower = [
+        intensity
+        for score, intensity in zip(scores, intensities, strict=True)
+        if score <= q1
+    ]
+    upper = [
+        intensity
+        for score, intensity in zip(scores, intensities, strict=True)
+        if score >= q3
+    ]
+    lower_mean = math.fsum(lower) / len(lower)
+    upper_mean = math.fsum(upper) / len(upper)
+    result.update(
+        {
+            "lower_count": len(lower),
+            "upper_count": len(upper),
+            "lower_mean_intensity": lower_mean,
+            "upper_mean_intensity": upper_mean,
+            "upper_minus_lower_mean_intensity": upper_mean - lower_mean,
+        }
+    )
+    return result
+
+
 def _demand_decomposition_diagnostics(
     run: _ValidatedRun, warnings: list[str]
 ) -> dict[str, Any]:
@@ -1434,6 +1779,14 @@ def _print_summary(result: WorkloadValidationResult) -> None:
         f"precision={context['clear_precursor_precision']['value']}, "
         f"recall={context['clear_precursor_recall']['value']}"
     )
+    intensity = report["intensity_predictability"]
+    print(
+        "Intensity signal: "
+        f"burst_starts={intensity['burst_start_count']}, "
+        f"correlation={intensity['pearson_correlation']}, "
+        "gate="
+        f"{intensity['signal_gate']['all_required_conditions_passed']}"
+    )
     print(f"Warnings: {len(report['warnings'])}")
 
 
@@ -1446,6 +1799,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--require-demonstrations",
         action="store_true",
         help="exit nonzero unless all three precursor demonstrations are present",
+    )
+    parser.add_argument(
+        "--require-intensity-signal",
+        action="store_true",
+        help="exit nonzero unless the planted intensity signal is useful and stochastic",
     )
     return parser
 
@@ -1461,13 +1819,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, WorkloadValidationError) as error:
         parser.error(str(error))
     _print_summary(result)
+    failed_gate = False
     if arguments.require_demonstrations and not result.demonstrations_passed:
         print(
             "required representative demonstrations are incomplete",
             file=sys.stderr,
         )
-        return 1
-    return 0
+        failed_gate = True
+    if arguments.require_intensity_signal and not result.intensity_signal_passed:
+        print(
+            "required conditional-intensity signal is incomplete",
+            file=sys.stderr,
+        )
+        failed_gate = True
+    return int(failed_gate)
 
 
 if __name__ == "__main__":

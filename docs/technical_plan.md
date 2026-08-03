@@ -3,7 +3,7 @@
 ## Document status
 
 **Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 2 — Demand Windows and Slow Structural Recovery
+**Current implementation phase:** Milestone 3 prerequisite — Context-Informative Burst Intensity
 
 **Last major planning revision:** August 2026
 

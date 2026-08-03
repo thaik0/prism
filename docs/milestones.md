@@ -2,9 +2,9 @@
 
 ## Current status
 
-**Current milestone:** Milestone 2 — Demand Windows and Slow Working-Set Learner
+**Current milestone:** Milestone 3 prerequisite — Context-Informative Burst Intensity
 
-**Project stage:** Implemented and verified
+**Project stage:** Prerequisite implemented and verified; predictor not started
 
 A milestone is complete only when:
 
@@ -137,6 +137,11 @@ Transform access traces into demand matrices and learn fuzzy latent working sets
 # Milestone 3 — Fast Activation and Intensity Predictor
 
 **Status:** Not started
+
+**Prerequisite status:** Complete. A dedicated longer controlled trace now plants
+and scientifically validates stochastic context-informed burst intensity while
+preserving the Milestone 1 and Milestone 2 contracts. No predictor behavior is
+included in the prerequisite.
 
 ## Objective
 

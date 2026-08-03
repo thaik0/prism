@@ -4,7 +4,9 @@ Prism is a predictive storage-tiering research system. The current implementatio
 includes **Milestone 1**, a controlled synthetic workload generator, and
 **Milestone 2**, a deterministic slow structural-recovery baseline. Milestone 2
 constructs raw demand windows, fits one nonnegative matrix factorization, and
-measures recovery of planted fuzzy working sets.
+measures recovery of planted fuzzy working sets. The narrow Milestone 3
+prerequisite also plants and validates stochastic context-informed burst
+intensity; the predictor itself is not implemented.
 
 No future activation prediction, cache, placement, storage-tier, or latency
 behavior is implemented yet.
@@ -86,7 +88,10 @@ PYTHONPATH=src python3 -m prism.workload.validate \
 This deterministically creates or replaces the separate derived artifact
 `workload_validation.json`. The required-demonstrations flag checks for a clear
 precursor followed by a burst, a clear precursor followed by no burst, and a burst
-without a clear precursor.
+without a clear precursor. For the longer predictor-prerequisite trace, generate
+`configs/milestone3_predictor_workload.json` and add
+`--require-intensity-signal` to require useful but imperfect conditional-intensity
+variation.
 
 ## Test
 

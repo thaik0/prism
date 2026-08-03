@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import statistics
 import subprocess
 import sys
 from typing import Any, Callable
@@ -16,6 +18,7 @@ from prism.workload.validate import (
     WorkloadValidationError,
     _classify_precursors,
     _demonstration_checks,
+    _intensity_signal_checks,
     validate_workload_run,
     write_validation_report,
 )
@@ -346,6 +349,193 @@ def test_missing_demonstrations_are_reported_but_not_structural_failures(
     assert any("demonstration category" in warning for warning in result.report["warnings"])
 
 
+def test_persisted_intensity_diagnostics_match_successful_trials(
+    run_factory,
+) -> None:
+    run_dir = run_factory(
+        num_windows=4,
+        num_working_sets=1,
+        working_set_support_min=2,
+        working_set_support_max=2,
+        burst_duration_min_windows=1,
+        burst_duration_max_windows=1,
+        burst_intensity_min=1.0,
+        burst_intensity_max=2.0,
+        burst_intensity_context_weight=0.5,
+    )
+    hidden = _read_json(run_dir / "hidden_ground_truth.json")
+    report = validate_workload_run(run_dir).report["intensity_predictability"]
+    trials = [
+        trial for trial in hidden["activation_trials"] if trial["activated"]
+    ]
+    bursts = [hidden["bursts"][trial["created_burst_id"]] for trial in trials]
+    scores = [trial["previous_window_precursor_score"] for trial in trials]
+    intensities = [burst["intensity"] for burst in bursts]
+    expected = [0.5 * (1.0 + score) + 0.5 * 1.5 for score in scores]
+    residuals = [
+        actual - estimate
+        for actual, estimate in zip(intensities, expected, strict=True)
+    ]
+    observed_mean = math.fsum(intensities) / len(intensities)
+    planted_mae = math.fsum(abs(value) for value in residuals) / len(residuals)
+    planted_rmse = math.sqrt(
+        math.fsum(value * value for value in residuals) / len(residuals)
+    )
+    baseline_errors = [value - observed_mean for value in intensities]
+    baseline_mae = math.fsum(abs(value) for value in baseline_errors) / len(
+        baseline_errors
+    )
+    baseline_rmse = math.sqrt(
+        math.fsum(value * value for value in baseline_errors)
+        / len(baseline_errors)
+    )
+
+    assert scores == [0.0, 1.0, 1.0, 1.0]
+    assert report["burst_start_count"] == 4
+    assert report["burst_start_count_by_working_set"] == [
+        {"working_set_id": 0, "burst_start_count": 4}
+    ]
+    assert report["distinct_precursor_score_count"] == 2
+    assert report["precursor_score_summary"]["standard_deviation"] == (
+        statistics.pstdev(scores)
+    )
+    assert report["sampled_intensity_summary"]["standard_deviation"] == (
+        statistics.pstdev(intensities)
+    )
+    assert report["pearson_correlation"] == statistics.correlation(
+        scores, intensities
+    )
+    assert report["planted_expectation_error"] == {
+        "mae": planted_mae,
+        "rmse": planted_rmse,
+    }
+    assert report["constant_observed_mean_baseline"] == {
+        "mean_intensity": observed_mean,
+        "mae": baseline_mae,
+        "rmse": baseline_rmse,
+    }
+    assert report["residual_standard_deviation"] == statistics.pstdev(
+        residuals
+    )
+    quartiles = report["quartile_intensity_comparison"]
+    assert quartiles["q1"] == 0.75
+    assert quartiles["q3"] == 1.0
+    assert quartiles["lower_count"] == 1
+    assert quartiles["upper_count"] == 3
+    assert quartiles["lower_mean_intensity"] == intensities[0]
+    assert quartiles["upper_mean_intensity"] == math.fsum(intensities[1:]) / 3
+    assert quartiles["upper_minus_lower_mean_intensity"] == (
+        quartiles["upper_mean_intensity"] - quartiles["lower_mean_intensity"]
+    )
+
+
+def test_undefined_intensity_metrics_are_null_and_warned(run_factory) -> None:
+    run_dir = run_factory(
+        num_windows=2,
+        num_working_sets=1,
+        working_set_support_min=2,
+        working_set_support_max=2,
+        burst_duration_min_windows=2,
+        burst_duration_max_windows=2,
+        burst_intensity_context_weight=0.5,
+    )
+
+    result = validate_workload_run(run_dir)
+    intensity = result.report["intensity_predictability"]
+
+    assert intensity["burst_start_count"] == 1
+    assert intensity["pearson_correlation"] is None
+    assert intensity["quartile_intensity_comparison"]["q1"] is None
+    assert not result.intensity_signal_passed
+    assert any("fewer than 2 observations" in warning for warning in result.report["warnings"])
+    assert any("quartiles are undefined" in warning for warning in result.report["warnings"])
+
+
+def _passing_intensity_report() -> dict[str, Any]:
+    return {
+        "configuration": {"burst_intensity_context_weight": 0.6},
+        "distinct_precursor_score_count": 3,
+        "precursor_score_summary": {"standard_deviation": 0.2},
+        "sampled_intensity_summary": {"standard_deviation": 0.4},
+        "pearson_correlation": 0.5,
+        "planted_expectation_error": {"mae": 0.2, "rmse": 0.3},
+        "constant_observed_mean_baseline": {"mae": 0.4, "rmse": 0.5},
+        "residual_standard_deviation": 0.1,
+        "quartile_intensity_comparison": {
+            "lower_mean_intensity": 1.5,
+            "upper_mean_intensity": 2.5,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("check_name", "mutation"),
+    [
+        (
+            "context_weight_strictly_between_zero_and_one",
+            lambda report: report["configuration"].update(
+                {"burst_intensity_context_weight": 0.0}
+            ),
+        ),
+        (
+            "at_least_two_distinct_precursor_scores",
+            lambda report: report.update({"distinct_precursor_score_count": 1}),
+        ),
+        (
+            "nonzero_precursor_score_variance",
+            lambda report: report["precursor_score_summary"].update(
+                {"standard_deviation": 0.0}
+            ),
+        ),
+        (
+            "nonzero_sampled_intensity_variance",
+            lambda report: report["sampled_intensity_summary"].update(
+                {"standard_deviation": 0.0}
+            ),
+        ),
+        (
+            "positive_pearson_correlation",
+            lambda report: report.update({"pearson_correlation": 0.0}),
+        ),
+        (
+            "planted_mae_lower_than_constant_mean_mae",
+            lambda report: report["planted_expectation_error"].update(
+                {"mae": 0.4}
+            ),
+        ),
+        (
+            "planted_rmse_lower_than_constant_mean_rmse",
+            lambda report: report["planted_expectation_error"].update(
+                {"rmse": 0.5}
+            ),
+        ),
+        (
+            "positive_residual_standard_deviation",
+            lambda report: report.update({"residual_standard_deviation": 0.0}),
+        ),
+        (
+            "upper_quartile_mean_above_lower_quartile_mean",
+            lambda report: report["quartile_intensity_comparison"].update(
+                {"upper_mean_intensity": 1.5}
+            ),
+        ),
+    ],
+)
+def test_each_intensity_signal_condition_is_required(
+    check_name: str, mutation: Callable[[dict[str, Any]], None]
+) -> None:
+    passing = _passing_intensity_report()
+    assert _intensity_signal_checks(passing)[
+        "all_required_conditions_passed"
+    ]
+    mutation(passing)
+
+    gate = _intensity_signal_checks(passing)
+
+    assert not gate["checks"][check_name]["passed"]
+    assert not gate["all_required_conditions_passed"]
+
+
 def test_report_is_deterministic_hashed_and_preserves_sources(run_factory) -> None:
     run_dir = run_factory()
     source_before = {
@@ -408,11 +598,23 @@ def test_default_cli_succeeds_but_required_demonstrations_gate_fails(
         text=True,
         check=False,
     )
+    required_intensity = subprocess.run(
+        [*base_command, "--require-intensity-signal"],
+        cwd=REPOSITORY_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
     assert default.returncode == 0, default.stderr
     assert "Structural validation: passed" in default.stdout
     assert required.returncode == 1
     assert "required representative demonstrations are incomplete" in required.stderr
+    assert required_intensity.returncode == 1
+    assert "required conditional-intensity signal is incomplete" in (
+        required_intensity.stderr
+    )
 
 
 def test_representative_diagnostic_arithmetic(representative_run) -> None:

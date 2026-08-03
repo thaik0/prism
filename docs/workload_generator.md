@@ -166,7 +166,8 @@ the hidden generation process as experiment metadata rather than model features.
 
 ## Configuration
 
-Every field is required. Unknown fields and likely typos are rejected.
+Every field except `burst_intensity_context_weight` is required. That field
+defaults to `0.0` for compatibility. Unknown fields and likely typos are rejected.
 
 | Field | Meaning |
 |---|---|
@@ -335,6 +336,31 @@ Warnings cover missing demonstrations, insufficient/degenerate variation,
 inactive or traffic-free sets, absent concurrency or overlap, deterministic
 supported observable categories, undefined ratios, and total traffic
 concentration.
+
+### Conditional-intensity diagnostics and gate
+
+The `intensity_predictability` report section matches each successful activation
+trial to its created burst and uses the stored previous-window score and sampled
+intensity. It reports burst-start counts, precursor and intensity summaries,
+Pearson correlation, planted-expectation MAE/RMSE, a constant observed-mean
+baseline, improvements, residual standard deviation, and lower-versus-upper
+precursor-quartile intensity. Standard deviations are population standard
+deviations over the persisted burst starts. Quartiles use
+`statistics.quantiles(..., method="inclusive")` across all burst starts, with
+`score <= Q1` and `score >= Q3`; insufficient or degenerate comparisons are
+`null` with deterministic warnings.
+
+Add `--require-intensity-signal` to require an intermediate context weight,
+nondegenerate precursor and intensity variation, positive Pearson correlation,
+lower planted-expectation MAE and RMSE than the constant baseline, positive
+residual variation, and greater upper-quartile mean intensity. The gate uses no
+configurable or arbitrary correlation threshold. These simulator-only
+diagnostics are not predictor inputs.
+
+The dedicated configuration is
+`configs/milestone3_predictor_workload.json`: it retains seed `1729` and all
+accepted representative settings except `num_windows=1000` and
+`burst_intensity_context_weight=0.6`.
 
 These diagnostics are descriptive. No universal precision, recall, balance,
 noise, or shortcut threshold is imposed because scientific usefulness depends on
