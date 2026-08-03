@@ -13,9 +13,16 @@ from prism.experiments.materialize import (
     resolve_simulation_config,
     resolve_workload_config,
 )
+from prism.experiments.runner import (
+    ExperimentExecution,
+    ExperimentRunError,
+    run_experiments,
+)
 
 __all__ = [
     "ExperimentManifest",
+    "ExperimentExecution",
+    "ExperimentRunError",
     "ManifestError",
     "MaterializedRun",
     "PolicyDefinition",
@@ -24,4 +31,5 @@ __all__ = [
     "materialize_run",
     "resolve_simulation_config",
     "resolve_workload_config",
+    "run_experiments",
 ]
