@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from prism.simulation import fit_record_demand_projection, project_record_demand
+from prism.simulation import (
+    build_record_demand_variants,
+    fit_record_demand_projection,
+    project_record_demand,
+)
 
 
 def _inputs():
@@ -87,4 +92,33 @@ def test_repeated_fitting_is_deterministic() -> None:
     )
     np.testing.assert_array_equal(
         first.predicted_record_demand, second.predicted_record_demand
+    )
+
+
+def test_forecast_ablations_remove_only_specified_original_terms() -> None:
+    demand = np.array([[1], [2], [4], [8]], dtype=np.int64)
+    membership = np.array([[1.0]])
+    probability = np.array([[0.0], [0.5], [1.0], [0.25]])
+    intensity = np.array([[0.0], [2.0], [2.0], [4.0]])
+    available = np.array([False, True, True, True])
+    result = fit_record_demand_projection(
+        demand, membership, probability, intensity, available, train_end=3
+    )
+    coefficients_before = result.model.factor_coefficients.copy()
+
+    variants = build_record_demand_variants(
+        result, probability, intensity, available
+    )
+    a_value, b_value, c_value = coefficients_before[0]
+    residual = result.model.residual_record_baseline[0]
+
+    assert variants["recent_state_only"][3, 0] == pytest.approx(
+        residual + max(0.0, a_value * demand[2, 0] + c_value)
+    )
+    assert variants["activation_intensity_only"][3, 0] == pytest.approx(
+        residual + max(0.0, b_value * probability[3, 0] * intensity[3, 0] + c_value)
+    )
+    assert variants["residual_baseline_only"][3, 0] == pytest.approx(residual)
+    np.testing.assert_array_equal(
+        result.model.factor_coefficients, coefficients_before
     )

@@ -21,8 +21,17 @@ from prism.simulation.evaluate import (
     evaluate_policy_results,
     evaluate_projection_diagnostics,
 )
-from prism.simulation.projection import ProjectionResult, fit_record_demand_projection
-from prism.simulation.replay import POLICY_NAMES, PolicyReplayResult, run_policy_replay
+from prism.simulation.projection import (
+    ProjectionResult,
+    build_record_demand_variants,
+    fit_record_demand_projection,
+)
+from prism.simulation.replay import (
+    POLICY_DISPLAY_NAMES,
+    POLICY_NAMES,
+    PolicyReplayResult,
+    run_policy_replay,
+)
 from prism.structure.demand import DemandMatrix, build_demand_matrix
 from prism.structure.evaluate import SOURCE_ARTIFACT_FILENAMES
 from prism.workload.config import WorkloadConfig
@@ -110,6 +119,9 @@ POLICY_TRACE_ARRAYS = frozenset(
         "per_window_end_occupancy_bytes",
         "per_window_end_resident_record_count",
         "final_resident_record_indicator",
+        "previous_target_record_indicator",
+        "pre_window_resident_record_indicator",
+        "per_window_promotion_record_indicator",
     }
 )
 
@@ -154,13 +166,19 @@ def run_simulated_evaluation(
     predictor_run_dir: str | Path,
     config_path: str | Path,
     output_dir: str | Path,
+    *,
+    require_scientific_gates: bool = True,
 ) -> SimulationRun:
     """Validate frozen inputs, fit projection, replay, evaluate, and persist."""
 
     destination = Path(output_dir)
     _validate_output_directory(destination)
     config = SimulationConfig.from_json(config_path)
-    frozen = _load_frozen_inputs(Path(run_dir), Path(predictor_run_dir))
+    frozen = _load_frozen_inputs(
+        Path(run_dir),
+        Path(predictor_run_dir),
+        require_scientific_gates=require_scientific_gates,
+    )
     config.validate_record_sizes(frozen.record_sizes.tolist())
     projection = fit_record_demand_projection(
         frozen.demand.X,
@@ -177,6 +195,12 @@ def run_simulated_evaluation(
         frozen.train_end,
         frozen.validation_end,
     )
+    forecast_variants = build_record_demand_variants(
+        projection,
+        frozen.activation_probability,
+        frozen.conditional_intensity,
+        frozen.prediction_available,
+    )
     replay = run_policy_replay(
         frozen.events,
         frozen.demand.X,
@@ -187,6 +211,7 @@ def run_simulated_evaluation(
         config,
         frozen.train_end,
         frozen.validation_end,
+        forecast_variants=forecast_variants,
     )
     policy_evaluation = evaluate_policy_results(replay, frozen.bursts)
     warnings = list(projection_diagnostics["warnings"])
@@ -231,6 +256,7 @@ def run_simulated_evaluation(
             "capacity_violations": replay.capacity_violations,
             "validation_costs_excluded_from_primary_metrics": True,
             "validation_state_carried_into_test": True,
+            "scientific_gates_required_for_input": require_scientific_gates,
         },
         "policy_metrics": replay.policy_metrics,
         **policy_evaluation,
@@ -250,6 +276,9 @@ def run_simulated_evaluation(
             "test_windows": [frozen.validation_end, frozen.demand.X.shape[0]],
         },
         "policy_names": list(POLICY_NAMES),
+        "policy_display_names": {
+            name: POLICY_DISPLAY_NAMES[name] for name in POLICY_NAMES
+        },
         "fixed_semantics": {
             "window_boundary_policies": [
                 "recent_demand_greedy",
@@ -284,11 +313,16 @@ def run_simulated_evaluation(
     return SimulationRun(config, projection, replay, report, config_artifact)
 
 
-def _load_frozen_inputs(source: Path, predictor: Path) -> _FrozenInputs:
+def _load_frozen_inputs(
+    source: Path,
+    predictor: Path,
+    *,
+    require_scientific_gates: bool = True,
+) -> _FrozenInputs:
     workload_validation = validate_workload_run(source)
-    if not workload_validation.demonstrations_passed:
+    if require_scientific_gates and not workload_validation.demonstrations_passed:
         raise SimulationInputError("source workload demonstration gate did not pass")
-    if not workload_validation.intensity_signal_passed:
+    if require_scientific_gates and not workload_validation.intensity_signal_passed:
         raise SimulationInputError("source workload intensity gate did not pass")
     source_config = WorkloadConfig.from_json(source / "config.json")
     demand = build_demand_matrix(source)
@@ -316,7 +350,9 @@ def _load_frozen_inputs(source: Path, predictor: Path) -> _FrozenInputs:
                 f"{artifact_name} source hashes do not match the supplied workload"
             )
     gates = predictor_report.get("scientific_gates")
-    if not isinstance(gates, dict) or not gates.get("all_passed"):
+    if not isinstance(gates, dict):
+        raise SimulationInputError("predictor scientific gate report is missing")
+    if require_scientific_gates and not gates.get("all_passed"):
         raise SimulationInputError("predictor scientific gates did not all pass")
     boundaries = predictor_config.get("split_boundaries")
     if not isinstance(boundaries, dict):
@@ -499,6 +535,9 @@ def _write_policy_traces(path: Path, replay: PolicyReplayResult) -> None:
         "per_event_tier_cost": replay.per_event_tier_cost,
         "per_event_hit_indicator": replay.per_event_hit,
         "final_resident_record_indicator": replay.final_resident_indicator,
+        "previous_target_record_indicator": replay.previous_target_indicator,
+        "pre_window_resident_record_indicator": replay.pre_window_resident_indicator,
+        "per_window_promotion_record_indicator": replay.per_window_promotion_indicator,
     }
     for name, values in replay.per_window.items():
         arrays[f"per_window_{name}"] = values

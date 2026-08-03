@@ -139,6 +139,58 @@ def project_record_demand(
     return projected
 
 
+def build_record_demand_variants(
+    projection: ProjectionResult,
+    activation_probability: np.ndarray,
+    conditional_intensity: np.ndarray,
+    prediction_available: np.ndarray,
+) -> dict[str, np.ndarray]:
+    """Mechanically ablate original fitted terms without changing coefficients."""
+
+    probability = np.asarray(activation_probability, dtype=np.float64)
+    intensity = np.asarray(conditional_intensity, dtype=np.float64)
+    available = np.asarray(prediction_available, dtype=np.bool_)
+    factor_demand = projection.observable_factor_demand
+    if probability.shape != factor_demand.shape or intensity.shape != factor_demand.shape:
+        raise ProjectionError("ablation predictor values have incompatible shape")
+    if available.shape != (factor_demand.shape[0],):
+        raise ProjectionError("ablation prediction availability has incompatible shape")
+    targets = np.flatnonzero(available)
+    if np.any(targets <= 0):
+        raise ProjectionError("ablation targets require preceding windows")
+    coefficients = projection.model.factor_coefficients
+    recent_factor = np.full_like(factor_demand, np.nan, dtype=np.float64)
+    activation_factor = np.full_like(factor_demand, np.nan, dtype=np.float64)
+    residual_factor = np.full_like(factor_demand, np.nan, dtype=np.float64)
+    recent_factor[targets] = np.maximum(
+        0.0,
+        factor_demand[targets - 1] * coefficients[:, 0] + coefficients[:, 2],
+    )
+    activation_factor[targets] = np.maximum(
+        0.0,
+        probability[targets]
+        * intensity[targets]
+        * coefficients[:, 1]
+        + coefficients[:, 2],
+    )
+    residual_factor[targets] = 0.0
+    variants = {
+        "predictive_greedy": projection.predicted_record_demand,
+        "recent_state_only": project_record_demand(
+            recent_factor, available, projection.model
+        ),
+        "activation_intensity_only": project_record_demand(
+            activation_factor, available, projection.model
+        ),
+        "residual_baseline_only": project_record_demand(
+            residual_factor, available, projection.model
+        ),
+    }
+    for values in variants.values():
+        values.setflags(write=False)
+    return variants
+
+
 def _project_factor_demand(
     factor_demand: np.ndarray,
     probability: np.ndarray,

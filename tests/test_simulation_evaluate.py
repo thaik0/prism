@@ -12,6 +12,11 @@ def _replay() -> PolicyReplayResult:
         "lfu": 110.0,
         "recent_demand_greedy": 100.0,
         "predictive_greedy": 90.0,
+        "training_popularity_static": 95.0,
+        "validation_final_frozen": 90.0,
+        "recent_state_only": 91.0,
+        "activation_intensity_only": 92.0,
+        "residual_baseline_only": 93.0,
         "oracle_greedy": 80.0,
         "oracle_exact": 79.0,
     }
@@ -41,10 +46,10 @@ def _replay() -> PolicyReplayResult:
         policy_names=POLICY_NAMES,
         test_window_ids=np.array([3, 4]),
         test_event_indices=np.array([0]),
-        per_event_tier_cost=np.ones((6, 1)),
-        per_event_hit=np.ones((6, 1), dtype=np.bool_),
+        per_event_tier_cost=np.ones((11, 1)),
+        per_event_hit=np.ones((11, 1), dtype=np.bool_),
         per_window=per_window,
-        final_resident_indicator=np.zeros((6, 2), dtype=np.bool_),
+        final_resident_indicator=np.zeros((11, 2), dtype=np.bool_),
         policy_metrics=policy_metrics,
         exact_solver_diagnostics=(
             {

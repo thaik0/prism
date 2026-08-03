@@ -116,7 +116,7 @@ def test_boundary_policies_place_before_events_and_remain_fixed_within_window() 
     assert result.per_window["promotion_count"][recent_index, 0] == 0
 
 
-def test_all_six_policies_receive_identical_test_events_and_independent_state() -> None:
+def test_all_eleven_policies_receive_identical_test_events_and_independent_state() -> None:
     result = _run(
         [[0], [1], [0, 1], [2, 0, 1], [1, 2]],
         sizes=[1, 1, 1],
@@ -124,11 +124,11 @@ def test_all_six_policies_receive_identical_test_events_and_independent_state() 
     )
 
     assert result.policy_names == POLICY_NAMES
-    assert result.per_event_tier_cost.shape == (6, 5)
-    assert result.per_event_hit.shape == (6, 5)
+    assert result.per_event_tier_cost.shape == (11, 5)
+    assert result.per_event_hit.shape == (11, 5)
     np.testing.assert_array_equal(result.test_event_indices, [4, 5, 6, 7, 8])
     assert result.capacity_violations == 0
-    assert result.final_resident_indicator.shape == (6, 3)
+    assert result.final_resident_indicator.shape == (11, 3)
     assert len(result.exact_solver_diagnostics) == 3
     assert [row["period"] for row in result.exact_solver_diagnostics] == [
         "validation",
@@ -138,6 +138,34 @@ def test_all_six_policies_receive_identical_test_events_and_independent_state() 
     assert all(
         row["solver_status"].startswith("optimal")
         for row in result.exact_solver_diagnostics
+    )
+
+
+def test_static_controls_are_independent_and_never_migrate_during_test() -> None:
+    records = [[0], [0], [0, 0], [1, 1], [0, 1]]
+    predictive = np.zeros((5, 2), dtype=np.float64)
+    predictive[2:, 1] = 2.0
+    result = _run(records, sizes=[1, 1], capacity=1, predictive=predictive)
+    training = result.policy_names.index("training_popularity_static")
+    frozen = result.policy_names.index("validation_final_frozen")
+    predictive_index = result.policy_names.index("predictive_greedy")
+
+    assert result.policy_metrics["training_popularity_static"]["promotion_count"] == 0
+    assert result.policy_metrics["validation_final_frozen"]["promotion_count"] == 0
+    assert result.policy_metrics["training_popularity_static"]["validation_setup"][
+        "promotion_count"
+    ] == 1
+    np.testing.assert_array_equal(
+        result.pre_window_resident_indicator[training, 0],
+        result.pre_window_resident_indicator[training, 1],
+    )
+    np.testing.assert_array_equal(
+        result.previous_target_indicator[frozen],
+        result.pre_window_resident_indicator[frozen, 0],
+    )
+    assert not np.shares_memory(
+        result.pre_window_resident_indicator[frozen],
+        result.pre_window_resident_indicator[predictive_index],
     )
 
 

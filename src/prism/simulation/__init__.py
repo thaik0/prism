@@ -10,6 +10,7 @@ from prism.simulation.controllers import (
 from prism.simulation.projection import (
     ProjectionModel,
     ProjectionResult,
+    build_record_demand_variants,
     fit_record_demand_projection,
     project_record_demand,
 )
@@ -20,6 +21,7 @@ from prism.simulation.persistence import (
     run_simulated_evaluation,
 )
 from prism.simulation.replay import (
+    POLICY_DISPLAY_NAMES,
     POLICY_NAMES,
     PolicyReplayResult,
     ReplayError,
@@ -40,6 +42,7 @@ __all__ = [
     "SimulationOutputDirectoryError",
     "SimulationRun",
     "StorageState",
+    "build_record_demand_variants",
     "exact_placement",
     "fit_record_demand_projection",
     "greedy_placement",
@@ -47,6 +50,7 @@ __all__ = [
     "record_benefits",
     "ReplayError",
     "POLICY_NAMES",
+    "POLICY_DISPLAY_NAMES",
     "run_policy_replay",
     "run_simulated_evaluation",
 ]

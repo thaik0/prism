@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from typing import Any, Mapping, Sequence
 
@@ -24,9 +24,27 @@ POLICY_NAMES = (
     "lfu",
     "recent_demand_greedy",
     "predictive_greedy",
+    "training_popularity_static",
+    "validation_final_frozen",
+    "recent_state_only",
+    "activation_intensity_only",
+    "residual_baseline_only",
     "oracle_greedy",
     "oracle_exact",
 )
+POLICY_DISPLAY_NAMES = {
+    "lru": "LRU",
+    "lfu": "LFU",
+    "recent_demand_greedy": "Recent-Demand Greedy",
+    "predictive_greedy": "Predictive Greedy (Prism)",
+    "training_popularity_static": "Training-Popularity Static (Prism)",
+    "validation_final_frozen": "Validation-Final Frozen (Prism)",
+    "recent_state_only": "Recent-State-Only (Prism ablation)",
+    "activation_intensity_only": "Activation/Intensity-Only (Prism ablation)",
+    "residual_baseline_only": "Residual-Baseline-Only (Prism ablation)",
+    "oracle_greedy": "Oracle Greedy",
+    "oracle_exact": "Oracle Exact",
+}
 BOUNDARY_POLICIES = frozenset(POLICY_NAMES[2:])
 WINDOW_ARRAY_NAMES = (
     "access_count",
@@ -60,6 +78,15 @@ class PolicyReplayResult:
     policy_metrics: dict[str, dict[str, Any]]
     exact_solver_diagnostics: tuple[dict[str, Any], ...]
     capacity_violations: int
+    previous_target_indicator: np.ndarray = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.bool_)
+    )
+    pre_window_resident_indicator: np.ndarray = field(
+        default_factory=lambda: np.empty((0, 0, 0), dtype=np.bool_)
+    )
+    per_window_promotion_indicator: np.ndarray = field(
+        default_factory=lambda: np.empty((0, 0, 0), dtype=np.bool_)
+    )
 
     def __post_init__(self) -> None:
         for name in (
@@ -68,6 +95,9 @@ class PolicyReplayResult:
             "per_event_tier_cost",
             "per_event_hit",
             "final_resident_indicator",
+            "previous_target_indicator",
+            "pre_window_resident_indicator",
+            "per_window_promotion_indicator",
         ):
             value = np.array(getattr(self, name), copy=True)
             value.setflags(write=False)
@@ -131,6 +161,7 @@ def run_policy_replay(
     config: SimulationConfig,
     validation_start: int,
     test_start: int,
+    forecast_variants: Mapping[str, np.ndarray] | None = None,
 ) -> PolicyReplayResult:
     """Warm every policy independently on validation and measure only test."""
 
@@ -160,11 +191,17 @@ def run_policy_replay(
         [event.event_index for event in test_events], dtype=np.int64
     )
     record_size_map = dict(zip(ids, sizes, strict=True))
+    variants = _validate_forecast_variants(
+        forecast_variants, predictive, demand.shape, available
+    )
 
     event_cost_rows: list[np.ndarray] = []
     event_hit_rows: list[np.ndarray] = []
     window_rows_by_policy: list[list[dict[str, int | float]]] = []
     final_residency_rows: list[np.ndarray] = []
+    previous_target_rows: list[np.ndarray] = []
+    pre_window_residency_rows: list[np.ndarray] = []
+    promotion_indicator_rows: list[np.ndarray] = []
     metrics: dict[str, dict[str, Any]] = {}
     exact_diagnostics: list[dict[str, Any]] = []
 
@@ -178,12 +215,43 @@ def run_policy_replay(
         policy_event_costs: list[float] = []
         policy_event_hits: list[bool] = []
         test_rows: list[dict[str, int | float]] = []
+        policy_pre_window: list[np.ndarray] = []
+        policy_promotions: list[np.ndarray] = []
+        validation_setup = {"promotion_count": 0, "bytes_promoted": 0, "promotion_cost": 0.0}
+        if policy_name == "training_popularity_static":
+            training_mean = np.mean(demand[:validation_start], axis=0)
+            setup_selection = _boundary_selection(
+                policy_name,
+                training_mean,
+                ids,
+                record_size_map,
+                runtime.state.resident,
+                config,
+            )
+            setup_target = set(setup_selection.target_record_ids)
+            validation_setup = {
+                "promotion_count": len(setup_target),
+                "bytes_promoted": sum(record_size_map[item] for item in setup_target),
+                "promotion_cost": sum(record_size_map[item] for item in setup_target)
+                * config.promotion_cost_per_byte,
+            }
+            _apply_target(runtime, setup_selection, _WindowRow(), False, config, set())
+
+        previous_target: set[int] | None = None
         for window_id in range(validation_start, num_windows):
             in_test = window_id >= test_start
             row = _WindowRow()
-            if policy_name in BOUNDARY_POLICIES:
+            promoted_records: set[int] = set()
+            if in_test and previous_target is None:
+                previous_target = set(runtime.state.resident)
+            should_place = policy_name in BOUNDARY_POLICIES and policy_name not in {
+                "training_popularity_static"
+            }
+            if policy_name == "validation_final_frozen" and in_test:
+                should_place = False
+            if should_place:
                 forecast = _boundary_forecast(
-                    policy_name, window_id, demand, predictive, available
+                    policy_name, window_id, demand, variants, available
                 )
                 selection = _boundary_selection(
                     policy_name,
@@ -205,7 +273,17 @@ def run_policy_replay(
                             ),
                         }
                     )
-                _apply_target(runtime, selection, row, in_test, config)
+                _apply_target(
+                    runtime, selection, row, in_test, config, promoted_records
+                )
+
+            if in_test:
+                policy_pre_window.append(
+                    np.asarray(
+                        [record_id in runtime.state.resident for record_id in ids],
+                        dtype=np.bool_,
+                    )
+                )
 
             for event in events_by_window[window_id]:
                 hit = runtime.state.note_access(event.record_id)
@@ -218,14 +296,24 @@ def run_policy_replay(
                     policy_event_costs.append(tier_cost)
                     policy_event_hits.append(hit)
                 if policy_name == "lru":
-                    _handle_lru(runtime, event, hit, row, in_test, config)
+                    _handle_lru(
+                        runtime, event, hit, row, in_test, config, promoted_records
+                    )
                 elif policy_name == "lfu":
-                    _handle_lfu(runtime, event, hit, row, in_test, config)
+                    _handle_lfu(
+                        runtime, event, hit, row, in_test, config, promoted_records
+                    )
 
             if in_test:
                 row.end_occupancy_bytes = runtime.state.resident_bytes
                 row.end_resident_record_count = len(runtime.state.resident)
                 test_rows.append(row.to_dict())
+                policy_promotions.append(
+                    np.asarray(
+                        [record_id in promoted_records for record_id in ids],
+                        dtype=np.bool_,
+                    )
+                )
 
         for episode in runtime.state.active_test_episodes():
             if episode.resident_accesses == 0:
@@ -245,6 +333,13 @@ def run_policy_replay(
                 dtype=np.bool_,
             )
         )
+        if previous_target is None:
+            raise ReplayError("test period did not capture previous target state")
+        previous_target_rows.append(
+            np.asarray([record_id in previous_target for record_id in ids], dtype=np.bool_)
+        )
+        pre_window_residency_rows.append(np.stack(policy_pre_window))
+        promotion_indicator_rows.append(np.stack(policy_promotions))
         metrics[policy_name] = _policy_metrics(
             test_rows,
             costs,
@@ -252,6 +347,7 @@ def run_policy_replay(
             runtime,
             config,
         )
+        metrics[policy_name]["validation_setup"] = validation_setup
 
     per_window = {
         name: np.asarray(
@@ -270,6 +366,9 @@ def run_policy_replay(
         per_event_hit=np.stack(event_hit_rows),
         per_window=per_window,
         final_resident_indicator=np.stack(final_residency_rows),
+        previous_target_indicator=np.stack(previous_target_rows),
+        pre_window_resident_indicator=np.stack(pre_window_residency_rows),
+        per_window_promotion_indicator=np.stack(promotion_indicator_rows),
         policy_metrics=metrics,
         exact_solver_diagnostics=tuple(exact_diagnostics),
         capacity_violations=0,
@@ -280,17 +379,28 @@ def _boundary_forecast(
     policy_name: str,
     window_id: int,
     demand: np.ndarray,
-    predictive: np.ndarray,
+    variants: Mapping[str, np.ndarray],
     available: np.ndarray,
 ) -> np.ndarray:
     if policy_name == "recent_demand_greedy":
         return np.asarray(demand[window_id - 1], dtype=np.float64)
-    if policy_name == "predictive_greedy":
+    if policy_name in {
+        "predictive_greedy",
+        "validation_final_frozen",
+        "recent_state_only",
+        "activation_intensity_only",
+        "residual_baseline_only",
+    }:
         if not available[window_id]:
             raise ReplayError(
                 f"predictive forecast is unavailable for window {window_id}"
             )
-        return predictive[window_id]
+        variant_name = (
+            "predictive_greedy"
+            if policy_name == "validation_final_frozen"
+            else policy_name
+        )
+        return variants[variant_name][window_id]
     return np.asarray(demand[window_id], dtype=np.float64)
 
 
@@ -322,12 +432,14 @@ def _apply_target(
     row: _WindowRow,
     in_test: bool,
     config: SimulationConfig,
+    promoted_records: set[int],
 ) -> None:
     target = set(selection.target_record_ids)
     for record_id in sorted(runtime.state.resident - target):
         _record_eviction(runtime, runtime.state.evict(record_id), row, in_test)
     for record_id in sorted(target - runtime.state.resident):
         migration = runtime.state.promote(record_id, began_in_test=in_test)
+        promoted_records.add(record_id)
         _record_promotion(migration, row, in_test, config)
     if runtime.state.resident != target:
         raise ReplayError("boundary controller did not establish exact target residency")
@@ -340,6 +452,7 @@ def _handle_lru(
     row: _WindowRow,
     in_test: bool,
     config: SimulationConfig,
+    promoted_records: set[int],
 ) -> None:
     if hit:
         runtime.lru_last_access[event.record_id] = event.event_index
@@ -356,6 +469,7 @@ def _handle_lru(
         _record_eviction(runtime, runtime.state.evict(victim), row, in_test)
         runtime.lru_last_access.pop(victim)
     migration = runtime.state.promote(event.record_id, began_in_test=in_test)
+    promoted_records.add(event.record_id)
     _record_promotion(migration, row, in_test, config)
     runtime.lru_last_access[event.record_id] = event.event_index
 
@@ -367,6 +481,7 @@ def _handle_lfu(
     row: _WindowRow,
     in_test: bool,
     config: SimulationConfig,
+    promoted_records: set[int],
 ) -> None:
     runtime.lfu_frequency[event.record_id] += 1
     runtime.lfu_last_access[event.record_id] = event.event_index
@@ -384,6 +499,7 @@ def _handle_lfu(
         _record_eviction(runtime, runtime.state.evict(victim), row, in_test)
         runtime.lfu_last_access.pop(victim)
     migration = runtime.state.promote(event.record_id, began_in_test=in_test)
+    promoted_records.add(event.record_id)
     _record_promotion(migration, row, in_test, config)
 
 
@@ -545,3 +661,30 @@ def _validate_replay_inputs(
         available,
         tuple(tuple(group) for group in grouped),
     )
+
+
+def _validate_forecast_variants(
+    raw: Mapping[str, np.ndarray] | None,
+    predictive: np.ndarray,
+    expected_shape: tuple[int, int],
+    available: np.ndarray,
+) -> dict[str, np.ndarray]:
+    required = {
+        "predictive_greedy",
+        "recent_state_only",
+        "activation_intensity_only",
+        "residual_baseline_only",
+    }
+    if raw is None:
+        return {name: predictive for name in required}
+    if set(raw) != required:
+        raise ReplayError("forecast variants must contain the exact four Prism forecasts")
+    result: dict[str, np.ndarray] = {}
+    for name in sorted(required):
+        values = np.asarray(raw[name], dtype=np.float64)
+        if values.shape != expected_shape:
+            raise ReplayError(f"forecast variant {name} has incompatible dimensions")
+        if np.any(~np.isfinite(values[available])) or np.any(values[available] < 0.0):
+            raise ReplayError(f"forecast variant {name} must be finite and nonnegative")
+        result[name] = values
+    return result

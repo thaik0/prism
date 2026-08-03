@@ -82,8 +82,8 @@ def test_representative_simulation_gates_artifacts_and_determinism(tmp_path) -> 
         )
     with np.load(output_a / "policy_traces.npz", allow_pickle=False) as archive:
         assert set(archive.files) == set(POLICY_TRACE_ARRAYS)
-        assert archive["per_event_tier_cost"].shape[0] == 6
-        assert archive["per_window_combined_cost"].shape == (6, 200)
+        assert archive["per_event_tier_cost"].shape[0] == 11
+        assert archive["per_window_combined_cost"].shape == (11, 200)
         assert not any(
             token in name
             for name in archive.files
