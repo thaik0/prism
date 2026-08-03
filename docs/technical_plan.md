@@ -3,7 +3,7 @@
 ## Document status
 
 **Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 3 complete — Fast Activation and Conditional Intensity
+**Current implementation phase:** Milestone 4 complete — Simulated Predictive Placement
 
 **Last major planning revision:** August 2026
 
@@ -600,3 +600,28 @@ Prism should use ML to estimate uncertain future demand and conventional systems
 Complexity must be earned through evidence.
 
 A simple model that produces a measurable real-system benefit is more valuable than a sophisticated architecture whose contribution cannot be isolated.
+
+---
+
+# 22. Milestone 4 Controlled Simulation Instantiation
+
+The completed controlled simulator instantiates the record forecast as one
+training-only nonnegative calibration per learned factor plus one fixed
+nonnegative residual baseline per record. It consumes frozen Milestone 3
+probabilities and conditional-intensity predictions; it does not refit structure
+or supervised models.
+
+The fast tier is simulated as an exact set of indivisible record IDs constrained
+by bytes. LRU and LFU react after a slow miss. Recent-demand, predictive, and the
+two one-window oracle policies replace their complete target residency at each
+window boundary. Greedy and exact placement use the same expected access-savings
+minus promotion-cost objective.
+
+All policies begin validation empty, retain independent state into test, and
+replay identical observable events and costs. Hidden burst intervals are opened
+only after replay for controlled transition analysis. The four deterministic
+Milestone 4 artifacts contain no hidden truth in deployable projection or policy
+trace arrays.
+
+This milestone establishes controlled simulated evidence only. It does not
+implement or measure the real tier engine described in later sections.

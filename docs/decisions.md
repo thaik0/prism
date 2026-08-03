@@ -485,3 +485,38 @@ The controlled labels are not available for real traces, and the current model
 does not use session history, operation type, multiple horizons, online updates,
 neural architectures, record-level projection, or placement. Those capabilities
 remain deferred until a later milestone or measured limitation justifies them.
+
+---
+
+## D023 — Controlled simulated placement experiment
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 4 uses one deterministic two-tier cost simulation with a byte capacity
+equal to one quarter of the representative trace's total record bytes, fixed
+fast/slow read costs of `1.0` and `10.0`, and a median-record promotion cost equal
+to two saved slow reads. It compares exactly LRU, LFU, recent-demand greedy,
+predictive greedy, one-window oracle greedy, and one-window oracle exact.
+
+Projection calibration is fit on training windows only. Policies begin validation
+empty, carry independent state into test, and replay identical observable events.
+Greedy and exact controllers share expected access savings minus promotion cost;
+ML does not select placement actions.
+
+**Rationale**
+
+One frozen configuration prevents test-driven storage-cost tuning. Validation
+warm-up avoids an artificial synchronized cold start at the primary test
+boundary. The recent-demand comparison isolates predictive value while holding
+the deterministic controller fixed; reactive and oracle policies expose other
+important baselines and available opportunity.
+
+**Consequences and limitations**
+
+The oracle sees only current-window demand and is not a full-horizon optimum.
+Independent myopic trajectories can affect ordering. Simulated tier costs omit
+prediction CPU time, queues, contention, concurrency, real migration timing,
+filesystem behavior, and wall-clock latency. These controlled results do not
+establish real RAM/SSD performance.

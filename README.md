@@ -4,12 +4,14 @@ Prism is a predictive storage-tiering research system. The current implementatio
 includes **Milestone 1**, a controlled synthetic workload generator;
 **Milestone 2**, a deterministic slow structural-recovery baseline; and
 **Milestone 3**, a deterministic next-window activation and conditional-intensity
-predictor. Milestone 3 fits structure on training windows only, freezes learned
-memberships, compares fixed recent-state and context-plus-state linear models,
-and evaluates calibration and three untouched-test scientific gates.
+predictor; and **Milestone 4**, a deterministic byte-constrained placement
+simulator. Milestone 4 consumes frozen predictor artifacts, calibrates
+record-demand projection on training windows only, warms six independent policies
+on validation, and evaluates access plus promotion cost on identical test events.
 
-No record-demand forecast, cache, placement, storage-tier, controller, or latency
-behavior is implemented yet.
+The storage tiers and costs are simulated. No real RAM, SSD, filesystem I/O,
+wall-clock latency, asynchronous migration, C++, or production storage engine is
+implemented yet.
 
 ## Requirements
 
@@ -77,6 +79,24 @@ The command writes exactly `predictor_config.json`, `predictor_bundle.npz`,
 `predictions.npz`, and `evaluation_report.json`. Deployable arrays contain no
 hidden targets or planted identities.
 
+## Evaluate simulated placement policies
+
+After producing the dedicated source and a gate-passing frozen predictor run:
+
+```bash
+PYTHONPATH=src python3 -m prism.simulation.cli \
+  --run-dir /tmp/prism_m4_source \
+  --predictor-run-dir /tmp/prism_m4_predictor \
+  --config configs/milestone4_simulation.json \
+  --output-dir /tmp/prism_milestone4_run
+```
+
+The command verifies source hashes and dimensions, fits only the projection
+calibration, replays LRU, LFU, recent-demand greedy, predictive greedy, one-window
+oracle greedy, and one-window oracle exact, then writes exactly
+`simulation_config.json`, `projection_model.npz`, `policy_traces.npz`, and
+`evaluation_report.json`.
+
 ## Python API
 
 ```python
@@ -122,4 +142,7 @@ documentation](docs/structure_recovery.md) for demand construction, the fixed NM
 baseline, recovery metrics, artifacts, limitations, and reproducibility.
 See [the Milestone 3 predictor documentation](docs/fast_predictor.md) for splits,
 features, fixed models, metrics, gates, artifacts, leakage protections, and
-limitations.
+limitations. See [the Milestone 4 simulated-placement
+documentation](docs/simulated_placement.md) for projection calibration, policy
+timing, byte capacity, cost accounting, transition metrics, scientific gates,
+artifacts, representative results, and limitations.

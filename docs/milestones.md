@@ -2,9 +2,9 @@
 
 ## Current status
 
-**Current milestone:** Milestone 3 — Fast Activation and Intensity Predictor
+**Current milestone:** Milestone 4 — Simulated Predictive Placement
 
-**Project stage:** Milestone 3 implemented and verified
+**Project stage:** Milestone 4 implemented and verified
 
 A milestone is complete only when:
 
@@ -183,7 +183,7 @@ Predict near-future working-set activation probability and conditional intensity
 
 # Milestone 4 — Simulated Predictive Placement
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -196,10 +196,10 @@ Convert forecasts into record-level demand estimates and compare predictive plac
 - expected-latency benefit calculation;
 - greedy predictive controller;
 - LRU baseline;
-- LFU or TinyLFU-style baseline;
-- size/cost-aware reactive baseline;
+- LFU baseline;
+- recent-demand size/cost-aware greedy baseline;
 - exact controller for small cases;
-- oracle future-demand controller;
+- one-window oracle greedy and exact controllers;
 - frozen-trace policy replay.
 
 ## Completion gate
@@ -209,6 +209,13 @@ Convert forecasts into record-level demand estimates and compare predictive plac
 - Metrics include latency, hit rate, bytes moved, and transition-period regret.
 - At least one predictable abrupt-burst workload shows an opportunity for predictive improvement.
 - Random or uninformative workloads expose prediction overhead rather than artificial gains.
+
+The representative 1,000-window trace passes all five fixed scientific gates.
+Predictive greedy reduces test combined cost relative to recent-demand greedy,
+LRU, and LFU; it also reduces unique burst-start-window combined cost relative
+to recent-demand greedy. One-window oracle greedy demonstrates opportunity, and
+one-window oracle exact is no worse than oracle greedy. These are controlled
+simulated-cost results, not measured storage latency.
 
 ---
 
