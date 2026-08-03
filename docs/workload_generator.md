@@ -226,6 +226,100 @@ records_in_multiple_working_sets=17
 
 The generated artifacts are intentionally not committed.
 
+## Scientific workload validation
+
+Engineering correctness establishes that a trace follows the configured schemas,
+probability formulas, causal delay, and reproducibility contract. Scientific
+workload validation is a separate question: does a particular persisted trace
+actually exhibit the learnable but imperfect signal intended for later work?
+
+Validate an already-generated run with:
+
+```bash
+PYTHONPATH=src python3 -m prism.workload.validate \
+  --run-dir /tmp/prism_milestone1_run
+```
+
+Add `--require-demonstrations` to require all three representative cases. The
+callable API is:
+
+```python
+from prism.workload.validate import validate_workload_run, write_validation_report
+
+result = validate_workload_run("/tmp/prism_milestone1_run")
+write_validation_report(
+    result,
+    "/tmp/prism_milestone1_run/workload_validation.json",
+)
+```
+
+### Derived report and source preservation
+
+The validator reads, rather than regenerates, the original four artifacts. It
+deterministically creates or replaces only `workload_validation.json`. The report
+includes SHA-256 hashes of all four sources, stable ordering, and a final newline.
+It contains no timestamp, random value, absolute input path, or machine-specific
+field. Revalidating unchanged sources produces a byte-identical report. The
+generator's four-file contract is unchanged.
+
+Malformed artifacts, invalid references, inconsistent counts, non-normalized
+vectors, invalid burst/trial state, probability-formula errors, or inconsistent
+request/session relationships are structural failures and make the CLI exit
+nonzero. Scientifically interesting but structurally valid conditions are emitted
+as factual warnings.
+
+### Precursor definition and demonstration gate
+
+Thresholds are calculated independently per working set from eligible activation
+trials using:
+
+```python
+statistics.quantiles(scores, n=4, method="inclusive")
+```
+
+- `score >= Q3` is a clear precursor.
+- `score <= Q1` is no clear precursor.
+- Scores between the thresholds are intermediate.
+- Fewer than two trials is insufficient; `Q1 == Q3` is degenerate.
+
+Insufficient and degenerate sets are reported but excluded, so a trial is never in
+both boundary groups. The representative gate requires positive counts for clear
+precursor followed by a burst, clear precursor followed by no burst, and no clear
+precursor followed by a burst.
+
+Without the flag, an absent category is a warning rather than a structural
+failure. With the flag, it makes the CLI exit 1 after writing and printing the
+report. The committed seed `1729` needs no adjustment: its counts are `11`, `7`,
+and `3`. Working set 0 has degenerate precursor variation and is explicitly
+excluded.
+
+### Diagnostic groups
+
+The report contains:
+
+- **Context signal:** eligible/successful trials, conditioned rates, precision,
+  recall, bursts without clear precursors, failed clear precursors, and average
+  stored probabilities. Ratios include their numerator and denominator.
+- **Working-set structure:** supports, memberships per record, overlap, membership
+  strengths, per-set maximum weights, and per-set demand balance.
+- **Burst diversity:** counts, duration/intensity summaries, starts, and
+  concurrency calculated from half-open burst intervals.
+- **Demand decomposition:** global and per-window baseline, noise, and working-set
+  counts/fractions plus event-count summaries.
+- **Observable associations:** next-window activation rates by user, request type,
+  and their pair. Raw categories are retained; min/max ranges use a documented
+  support floor of 10 paired eligible-trial observations.
+
+Warnings cover missing demonstrations, insufficient/degenerate variation,
+inactive or traffic-free sets, absent concurrency or overlap, deterministic
+supported observable categories, undefined ratios, and total traffic
+concentration.
+
+These diagnostics are descriptive. No universal precision, recall, balance,
+noise, or shortcut threshold is imposed because scientific usefulness depends on
+the experiment. The validator performs no feature construction, demand-matrix
+creation, learning, factorization, prediction, or other Milestone 2 work.
+
 ## Current limitations
 
 - Working-set count and all distributions are fixed for a run; there is no drift.

@@ -51,6 +51,22 @@ persist_workload(result, "/tmp/prism_milestone1_run")
 `result.observable_events`, `result.hidden_ground_truth`, and `result.summary` are
 separate in-memory structures.
 
+## Validate scientific workload properties
+
+Validation analyzes an existing run without regenerating it or modifying its four
+source artifacts:
+
+```bash
+PYTHONPATH=src python3 -m prism.workload.validate \
+  --run-dir /tmp/prism_milestone1_run \
+  --require-demonstrations
+```
+
+This deterministically creates or replaces the separate derived artifact
+`workload_validation.json`. The required-demonstrations flag checks for a clear
+precursor followed by a burst, a clear precursor followed by no burst, and a burst
+without a clear precursor.
+
 ## Test
 
 ```bash
@@ -58,4 +74,5 @@ python3 -m pytest -q
 ```
 
 See [the Milestone 1 workload documentation](docs/workload_generator.md) for the
-generation model, schemas, validation rules, and reproducibility contract.
+generation model, schemas, engineering and scientific validation rules, and
+reproducibility contract.
