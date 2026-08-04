@@ -559,3 +559,34 @@ The completed sweep does not support dynamic value or fast-predictor contributio
 training-only popularity and always had positive regret to Oracle Greedy. These
 findings motivate future investigation but do not change the model, feature set,
 projection, objective, policy set, or storage implementation in this milestone.
+
+---
+
+## D025 — Reframe Prism around stable cost-aware tiering
+
+**Status:** Accepted
+
+**Decision**
+
+Following the frozen Milestone 5.5 diagnosis, Prism's supported thesis is learned
+latent-demand structure for stable, cost-aware storage tiering. The current fast
+activation/intensity predictor remains a separable research component, but is not
+claimed to cause useful dynamic placement. The deterministic controller and the
+project/package name remain unchanged.
+
+**Rationale**
+
+All 27 engineering-valid runs completed reproducibly and the sparse regimes
+separated as intended. In every precommitted candidate cell, Predictive Greedy
+made zero test target changes and matched both Validation-Final Frozen and
+Recent-State-Only exactly. Factor forecasts moved, but a dominant stable residual
+record baseline, stable ranking, promotion cost, and byte competition prevented
+action. All candidates therefore failed all four precommitted gates.
+
+**Consequences and limitations**
+
+No post-result feature, model, parameter, threshold, seed, horizon, or regime
+search is authorized by this decision. Real storage remains deferred, so the
+evidence concerns deterministic simulated costs rather than measured latency.
+Positive oracle regret preserves a future research question, but not a claim of
+demonstrated dynamic predictive tiering.

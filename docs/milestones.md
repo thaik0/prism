@@ -2,9 +2,9 @@
 
 ## Current status
 
-**Current milestone:** Milestone 5 — Rigorous Evaluation and Error Analysis
+**Current milestone:** Milestone 5.5 — Predictive Actionability Diagnosis
 
-**Project stage:** Milestone 5 implemented and verified
+**Project stage:** Milestone 5.5 implemented and verified; thesis reframed
 
 A milestone is complete only when:
 
@@ -261,6 +261,35 @@ Only `promotion_0__seed_31415` changed test targets; it reduced cost by `243`
 relative to frozen while slightly reducing mean pre-transition realized-demand
 coverage. Oracle regret remained positive in every run, so predictive opportunity
 still exists. Full results and limitations are in `docs/milestone5_results.md`.
+
+---
+
+# Milestone 5.5 — Predictive Actionability Diagnosis
+
+**Status:** Complete
+
+## Objective
+
+Determine whether the frozen predictor-to-controller architecture becomes
+dynamically actionable under sparse activation regimes and matched cumulative
+horizons, or whether Prism's supported thesis must be narrowed.
+
+## Completion evidence
+
+- A frozen 3-regime by 3-horizon by 3-seed manifest completed all 27 runs.
+- Sparse and very-sparse regimes showed strictly fewer starts, less simultaneous
+  activity, and longer dormant intervals in three-seed aggregate.
+- Common eligible windows, cumulative labels/baselines, rolling placement,
+  factor-to-record decomposition, controller rejection, matched oracle, and
+  promotion repayment were persisted deterministically.
+- Two complete roots were byte-identical and resume reused all 27 hash-validated
+  runs.
+- All four candidate cells failed Gates A--D without post-result tuning.
+
+The final status is `stable_cost_aware_tiering_reframe`. The current evidence
+supports learned latent-demand structure for stable, cost-aware tiering, but not
+useful dynamic predictive tiering from the current fast forecast. This result
+does not begin a predictor search or real-storage implementation.
 
 ---
 

@@ -8,6 +8,9 @@ predictor; and **Milestone 4**, a deterministic byte-constrained placement
 simulator. **Milestone 5** adds a frozen 36-run, 12-variant evaluation with two
 static Prism controls, three mechanical forecast ablations, dynamic-action and
 pre-transition diagnostics, paired comparisons, and deterministic aggregation.
+**Milestone 5.5** adds a frozen 27-run diagnosis across three activation regimes
+and cumulative horizons `1`, `2`, and `4`, tracing forecast movement through
+record ranking, controller rejection, oracle agreement, and promotion repayment.
 Milestone 4 consumes frozen predictor artifacts, calibrates
 record-demand projection on training windows only, warms six independent policies
 on validation, and evaluates access plus promotion cost on identical test events.
@@ -121,6 +124,22 @@ the current implementation usually benefits from a good validation-developed
 placement, but the sweep does not support continued dynamic value from the fast
 predictor. See [the compact Milestone 5 results](docs/milestone5_results.md).
 
+## Run the frozen Milestone 5.5 diagnosis
+
+```bash
+PYTHONPATH=src python3 -m prism.experiments.cli \
+  --manifest configs/milestone55_actionability.json \
+  --output-dir /tmp/prism_milestone55
+```
+
+The 27-run sweep completed reproducibly and the sparse regimes separated as
+intended, but all four predeclared candidate cells remained identical to frozen
+placement and Recent-State-Only. The precommitted conclusion is
+`stable_cost_aware_tiering_reframe`: the evidence supports learned latent-demand
+structure for stable cost-aware placement, not useful dynamic predictive tiering
+from the current fast forecast. See [the diagnosis](docs/milestone55_actionability.md)
+and [compact results](docs/milestone55_results.md).
+
 ## Python API
 
 ```python
@@ -173,3 +192,7 @@ artifacts, representative results, and limitations.
 See [the Milestone 5 results](docs/milestone5_results.md) for the frozen design,
 causal controls, full-sweep results, gate outcomes, reproducibility evidence, and
 small-sample limitations.
+See [the Milestone 5.5 actionability diagnosis](docs/milestone55_actionability.md)
+for cumulative horizons, common windows, signal-flow diagnostics, and the
+precommitted thesis gate, and [its results](docs/milestone55_results.md) for the
+frozen negative outcome and stable cost-aware tiering reframe.

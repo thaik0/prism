@@ -3,7 +3,7 @@
 ## Document status
 
 **Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 5 complete — Rigorous Evaluation and Error Analysis
+**Current implementation phase:** Milestone 5.5 complete — Predictive Actionability Diagnosis and stable cost-aware tiering reframe
 
 **Last major planning revision:** August 2026
 
@@ -21,13 +21,19 @@ Settled architectural decisions are summarized in `docs/decisions.md`.
 
 # 1. Project Thesis
 
-Prism is a predictive storage-tiering system that learns recurring structure in data demand, forecasts which groups of records are likely to become valuable in the near future, and proactively reorganizes constrained fast-storage tiers before that demand fully arrives.
+Prism is a stable, cost-aware storage-tiering research system that learns
+recurring latent structure in data demand and feeds demand estimates to a
+deterministic placement controller. The current evidence supports the learned
+structure and validation-developed stable placement, but not useful dynamic
+placement caused by the current activation/intensity forecast.
 
-The central research question is:
+The original predictive research question remains open rather than demonstrated:
 
 **Can a storage system predict context-triggered changes in future working-set demand early enough to prepare storage proactively, while keeping prediction and movement overhead below the resulting latency benefit?**
 
-Prism targets workloads with recurring, context-predictable demand transitions where reactive policies adapt only after expensive misses occur.
+Future predictive work must first explain how forecast signal survives
+factor-to-record projection, stable ranking, movement cost, and capacity
+competition. It is not part of the completed Milestone 5.5 implementation.
 
 ---
 
@@ -531,11 +537,12 @@ The storage implementation should remain deliberately simple to avoid hidden beh
 3. Fast activation/intensity predictor
 4. Simulated predictive placement
 5. Rigorous experiments and error analysis
-6. Real C++ RAM/SSD tiering engine
-7. Python/C++ integration
-8. Open-source LLM inference simulator integration
-9. Real heterogeneous CPU/GPU/storage deployment
-10. Other application domains, including possible market-data workloads
+6. Predictive actionability diagnosis and thesis reframe (Milestone 5.5)
+7. Real C++ RAM/SSD tiering engine, deferred pending a newly authorized milestone
+8. Python/C++ integration
+9. Open-source LLM inference simulator integration
+10. Real heterogeneous CPU/GPU/storage deployment
+11. Other application domains, including possible market-data workloads
 
 Detailed completion gates are maintained in `docs/milestones.md`.
 
@@ -652,3 +659,30 @@ the validation-developed learned-factor placement, while positive regret to the
 one-window oracle in every run shows substantial unrealized opportunity. This
 narrows later work toward forecast-to-placement responsiveness; it does not
 authorize new models or controller objectives inside Milestone 5.
+
+---
+
+# 24. Milestone 5.5 Actionability Diagnosis and Thesis Reframe
+
+Milestone 5.5 freezes three activation regimes, cumulative horizons `1`, `2`,
+and `4`, three seeds, one common horizon-safe population, and four eligible
+sparse multi-window candidate cells. It retains the accepted models and
+controller while adding per-working-set cooldown, cumulative targets,
+factor-to-record component accounting, rank turnover, rejection margins,
+matched-horizon oracle agreement, and proactive-promotion repayment.
+
+All 27 runs completed reproducibly and the regimes separated as intended, but
+none of the four candidate cells changed a test target or made a promotion.
+Moving factor forecasts were diluted by a record residual baseline contributing
+roughly 87--90% of projected magnitude; record candidate sets consequently
+remained almost fixed, while promotion cost and capacity rejected remaining
+nonresident opportunities. Oracle disagreement remained material, so the result
+does not imply that ideal future knowledge lacks value.
+
+The precommitted decision is `stable_cost_aware_tiering_reframe`. Prism's
+supported near-term thesis is learned latent-demand structure feeding a
+deterministic, auditable, stable cost-aware placement controller. Dynamic
+activation/intensity forecasts remain a measured but presently unactionable
+research component. Package names and implementation history remain unchanged,
+and this result does not authorize post-result predictor tuning or begin real
+storage work.

@@ -69,8 +69,12 @@ activation_probability =
 
 The formula treats spontaneous and contextual activation as independent
 opportunities. A nonzero precursor can fail, and a zero precursor can still be
-followed by a spontaneous burst. Active sets do not receive activation trials and
-can retrigger only after expiration.
+followed by a spontaneous burst. Active sets do not receive activation trials.
+An optional per-working-set `post_burst_cooldown_windows` delays retrigger
+eligibility after expiration. If a burst ends at `e`, cooldown `c` suppresses
+trials in `[e, e + c)`; omitted or zero preserves immediate eligibility at `e`.
+Cooling sets consume no activation draw and simultaneous working sets remain
+independent.
 
 For a successful activation, one intensity is sampled from the same run-owned
 RNG and blended with the activation trial's previous-window precursor score:
@@ -160,14 +164,18 @@ An absent record in a sparse working-set membership has membership zero. The
 hidden file is never safe as predictor input. There is no combined
 observable-plus-hidden event table.
 
-`summary.json` contains human-readable run totals. `config.json` is the validated,
-fully resolved input, including the seed. Treat configuration values that describe
-the hidden generation process as experiment metadata rather than model features.
+`summary.json` contains human-readable run totals. `config.json` is the validated
+input, including the seed. Ordinary legacy persistence omits a resolved zero
+cooldown to preserve accepted bytes; Milestone 5.5 canonical persistence records
+the cooldown explicitly in both configuration and summary. Treat configuration
+values that describe the hidden generation process as experiment metadata rather
+than model features.
 
 ## Configuration
 
-Every field except `burst_intensity_context_weight` is required. That field
-defaults to `0.0` for compatibility. Unknown fields and likely typos are rejected.
+Every field except `burst_intensity_context_weight` and
+`post_burst_cooldown_windows` is required. They default to `0.0` and `0`
+respectively for compatibility. Unknown fields and likely typos are rejected.
 
 | Field | Meaning |
 |---|---|
@@ -188,6 +196,7 @@ defaults to `0.0` for compatibility. Unknown fields and likely typos are rejecte
 | `burst_duration_min_windows`, `burst_duration_max_windows` | Inclusive positive integer duration bounds. |
 | `burst_intensity_min`, `burst_intensity_max` | Inclusive positive intensity bounds. |
 | `burst_intensity_context_weight` | Prior-window context blend in `[0, 1]`; optional and resolved to `0.0` when omitted. |
+| `post_burst_cooldown_windows` | Per-working-set ineligible windows after burst end; optional nonnegative integer resolved to `0`. |
 | `burst_access_weight` | Nonnegative active-burst source multiplier. |
 | `baseline_access_weight` | Nonnegative baseline source weight. |
 | `noise_access_weight` | Nonnegative noise source weight. |
