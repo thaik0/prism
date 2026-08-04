@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -29,6 +30,16 @@ std::vector<char> bytes(const std::filesystem::path& path) {
 void write_text(const std::filesystem::path& path, const std::string& value) {
   std::ofstream stream(path, std::ios::binary | std::ios::trunc);
   stream << value;
+}
+
+std::vector<std::byte> payload_bytes(const std::string& value) {
+  std::vector<std::byte> result;
+  result.reserve(value.size());
+  for (const char byte : value) {
+    result.push_back(
+        static_cast<std::byte>(static_cast<unsigned char>(byte)));
+  }
+  return result;
 }
 
 const std::filesystem::path kFixtureManifest =
@@ -91,6 +102,47 @@ TEST_CASE("repeated builds are byte-identical and input-order independent") {
         bytes(second / prism::storage::kStoreDataFilename));
   CHECK(bytes(first / prism::storage::kStoreIndexFilename) ==
         bytes(second / prism::storage::kStoreIndexFilename));
+}
+
+TEST_CASE("in-memory records share deterministic builder output") {
+  const auto root = fresh_directory("prism_builder_memory");
+  std::filesystem::create_directories(root);
+  const auto manifest_store = root / "manifest_store";
+  const auto memory_store = root / "memory_store";
+  REQUIRE(prism::storage::build_store(kFixtureManifest, manifest_store));
+
+  std::vector<prism::storage::BuildRecord> records;
+  for (const auto id : {3, 1, 2}) {
+    const auto source = std::filesystem::path(PRISM_TEST_SOURCE_DIR) /
+                        "fixtures" / "payloads" /
+                        ("record_" + std::to_string(id) + ".bin");
+    const auto payload = bytes(source);
+    records.push_back(prism::storage::BuildRecord{
+        static_cast<prism::storage::RecordId>(id),
+        payload_bytes(std::string(payload.begin(), payload.end()))});
+  }
+  const auto built = prism::storage::build_store(std::move(records), memory_store);
+  REQUIRE(built);
+  CHECK(built->record_count == 3);
+  CHECK(bytes(manifest_store / prism::storage::kStoreDataFilename) ==
+        bytes(memory_store / prism::storage::kStoreDataFilename));
+  CHECK(bytes(manifest_store / prism::storage::kStoreIndexFilename) ==
+        bytes(memory_store / prism::storage::kStoreIndexFilename));
+
+  std::vector<prism::storage::BuildRecord> duplicate{
+      {1, payload_bytes("one")}, {1, payload_bytes("two")}};
+  const auto duplicate_result = prism::storage::build_store(
+      std::move(duplicate), root / "duplicate");
+  REQUIRE_FALSE(duplicate_result);
+  CHECK(duplicate_result.error().code ==
+        prism::storage::StoreErrorCode::duplicate_record);
+
+  std::vector<prism::storage::BuildRecord> empty{{1, {}}};
+  const auto empty_result =
+      prism::storage::build_store(std::move(empty), root / "empty");
+  REQUIRE_FALSE(empty_result);
+  CHECK(empty_result.error().code ==
+        prism::storage::StoreErrorCode::malformed_manifest);
 }
 
 TEST_CASE("builder rejects duplicate, missing, and zero-length payloads") {

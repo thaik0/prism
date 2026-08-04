@@ -216,6 +216,48 @@ Expected<RecordMetadata> append_payload(const ManifestRecord& record,
                         static_cast<std::uint32_t>(checksum)};
 }
 
+Expected<RecordMetadata> append_payload(const BuildRecord& record,
+                                        std::uint64_t offset,
+                                        std::ofstream& destination) {
+  if (record.payload.empty()) {
+    return unexpected(make_error(StoreErrorCode::malformed_manifest,
+                                 "zero-length payloads are not supported",
+                                 std::nullopt, record.record_id));
+  }
+  if (record.payload.size() > std::numeric_limits<std::uint64_t>::max()) {
+    return unexpected(make_error(StoreErrorCode::arithmetic_overflow,
+                                 "payload length is not representable",
+                                 std::nullopt, record.record_id));
+  }
+  const auto size = static_cast<std::uint64_t>(record.payload.size());
+  auto next_offset = detail::checked_add_bytes(
+      offset, size, record.record_id, std::nullopt);
+  if (!next_offset) {
+    return unexpected(next_offset.error());
+  }
+
+  constexpr std::size_t kChunkBytes = 64U * 1024U;
+  std::size_t copied = 0;
+  uLong checksum = ::crc32(0L, Z_NULL, 0);
+  while (copied < record.payload.size()) {
+    const std::size_t count =
+        std::min(kChunkBytes, record.payload.size() - copied);
+    const auto* bytes = record.payload.data() + copied;
+    destination.write(reinterpret_cast<const char*>(bytes),
+                      static_cast<std::streamsize>(count));
+    if (!destination) {
+      return unexpected(make_error(StoreErrorCode::io_error,
+                                   "could not write store.data", std::nullopt,
+                                   record.record_id));
+    }
+    checksum = ::crc32(checksum, reinterpret_cast<const Bytef*>(bytes),
+                       static_cast<uInt>(count));
+    copied += count;
+  }
+  return RecordMetadata{record.record_id, offset, size,
+                        static_cast<std::uint32_t>(checksum)};
+}
+
 Expected<bool> write_index(const std::filesystem::path& path,
                            const std::vector<RecordMetadata>& records,
                            std::uint64_t data_length) {
@@ -257,14 +299,34 @@ Expected<bool> write_index(const std::filesystem::path& path,
   }
 }
 
-}  // namespace
+template <typename Record>
+Expected<bool> sort_and_validate_records(std::vector<Record>& records) {
+  if (records.empty()) {
+    return unexpected(make_error(StoreErrorCode::malformed_manifest,
+                                 "at least one record is required"));
+  }
+  std::sort(records.begin(), records.end(),
+            [](const Record& left, const Record& right) {
+              return left.record_id < right.record_id;
+            });
+  for (std::size_t index = 1; index < records.size(); ++index) {
+    if (records[index - 1].record_id == records[index].record_id) {
+      return unexpected(make_error(StoreErrorCode::duplicate_record,
+                                   "builder input contains a duplicate record ID",
+                                   std::nullopt, records[index].record_id));
+    }
+  }
+  return true;
+}
 
-Expected<BuildResult> build_store(
-    const std::filesystem::path& manifest_path,
-    const std::filesystem::path& output_directory) {
-  auto manifest = load_manifest(manifest_path);
-  if (!manifest) {
-    return unexpected(manifest.error());
+template <typename Record, typename AppendPayload>
+Expected<BuildResult> build_records(
+    std::vector<Record> records,
+    const std::filesystem::path& output_directory,
+    AppendPayload append) {
+  auto records_valid = sort_and_validate_records(records);
+  if (!records_valid) {
+    return unexpected(records_valid.error());
   }
   auto destination_ready = prepare_destination(output_directory);
   if (!destination_ready) {
@@ -305,14 +367,14 @@ Expected<BuildResult> build_store(
   }
   std::vector<RecordMetadata> metadata;
   try {
-    metadata.reserve(manifest->size());
+    metadata.reserve(records.size());
   } catch (const std::bad_alloc&) {
     return unexpected(make_error(StoreErrorCode::allocation_failure,
                                  "could not allocate record metadata", temporary));
   }
   std::uint64_t offset = 0;
-  for (const auto& record : *manifest) {
-    auto appended = append_payload(record, offset, data_stream);
+  for (const auto& record : records) {
+    auto appended = append(record, offset, data_stream);
     if (!appended) {
       return unexpected(appended.error());
     }
@@ -335,7 +397,8 @@ Expected<BuildResult> build_store(
                                  "could not close store.data", data_path));
   }
 
-  auto index_written = write_index(temporary / kStoreIndexFilename, metadata, offset);
+  auto index_written =
+      write_index(temporary / kStoreIndexFilename, metadata, offset);
   if (!index_written) {
     return unexpected(index_written.error());
   }
@@ -356,6 +419,32 @@ Expected<BuildResult> build_store(
   }
   temporary_guard.release();
   return BuildResult{static_cast<std::uint64_t>(metadata.size()), offset};
+}
+
+}  // namespace
+
+Expected<BuildResult> build_store(
+    const std::filesystem::path& manifest_path,
+    const std::filesystem::path& output_directory) {
+  auto manifest = load_manifest(manifest_path);
+  if (!manifest) {
+    return unexpected(manifest.error());
+  }
+  return build_records(std::move(*manifest), output_directory,
+                       [](const ManifestRecord& record, std::uint64_t offset,
+                          std::ofstream& destination) {
+                         return append_payload(record, offset, destination);
+                       });
+}
+
+Expected<BuildResult> build_store(
+    std::vector<BuildRecord> records,
+    const std::filesystem::path& output_directory) {
+  return build_records(std::move(records), output_directory,
+                       [](const BuildRecord& record, std::uint64_t offset,
+                          std::ofstream& destination) {
+                         return append_payload(record, offset, destination);
+                       });
 }
 
 }  // namespace prism::storage

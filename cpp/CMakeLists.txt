@@ -6,6 +6,7 @@ include(CTest)
 include(FetchContent)
 
 option(PRISM_BUILD_TESTS "Build Prism native tests" ON)
+option(PRISM_BUILD_PYTHON_BINDINGS "Build the private Python extension" OFF)
 option(PRISM_ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(PRISM_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 option(PRISM_WARNINGS_AS_ERRORS "Treat Prism warnings as errors" OFF)
@@ -102,6 +103,7 @@ add_library(prism_storage
   "${PRISM_GENERATED_HEADER}"
 )
 add_dependencies(prism_storage prism_flatbuffers_generated)
+set_target_properties(prism_storage PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(prism_storage
   PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
   SYSTEM PRIVATE "${PRISM_GENERATED_DIR}"
@@ -111,6 +113,16 @@ target_link_libraries(prism_storage
   PRIVATE flatbuffers nlohmann_json::nlohmann_json ZLIB::ZLIB
 )
 prism_configure_owned_target(prism_storage)
+
+if(PRISM_BUILD_PYTHON_BINDINGS)
+  set(PYBIND11_FINDPYTHON ON)
+  find_package(pybind11 3.0.4 CONFIG REQUIRED)
+  pybind11_add_module(prism_native MODULE src/python_bindings.cpp)
+  target_link_libraries(prism_native PRIVATE prism_storage)
+  set_target_properties(prism_native PROPERTIES OUTPUT_NAME "_native")
+  prism_configure_owned_target(prism_native)
+  install(TARGETS prism_native LIBRARY DESTINATION prism)
+endif()
 
 add_executable(prism_store_build tools/build_main.cpp)
 target_link_libraries(prism_store_build PRIVATE prism_storage CLI11::CLI11 nlohmann_json::nlohmann_json)

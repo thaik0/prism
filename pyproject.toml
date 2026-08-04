@@ -1,6 +1,9 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = [
+    "scikit-build-core==0.11.6",
+    "pybind11==3.0.4",
+]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "prism-storage"
@@ -13,8 +16,15 @@ dependencies = [
     "scipy",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.source-dir = "cpp"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/prism"]
+
+[tool.scikit-build.cmake.define]
+PRISM_BUILD_PYTHON_BINDINGS = "ON"
+PRISM_BUILD_TESTS = "OFF"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
