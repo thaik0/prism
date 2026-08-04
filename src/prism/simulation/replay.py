@@ -241,9 +241,10 @@ def run_policy_replay(
         policy_promotions: list[np.ndarray] = []
         validation_setup = {"promotion_count": 0, "bytes_promoted": 0, "promotion_cost": 0.0}
         if policy_name == "training_popularity_static":
-            training_mean = (
-                forecast_horizon_windows
-                * np.mean(demand[:validation_start], axis=0)
+            training_mean = training_popularity_forecast(
+                demand,
+                validation_start,
+                forecast_horizon_windows,
             )
             setup_selection = _boundary_selection(
                 policy_name,
@@ -455,6 +456,41 @@ def _boundary_selection(
     resident: set[int],
     config: SimulationConfig,
 ) -> PlacementSelection:
+    if policy_name == "oracle_exact":
+        benefits = record_benefits(
+            forecast,
+            record_ids,
+            record_sizes,
+            resident,
+            config.fast_read_cost,
+            config.slow_read_cost,
+            config.promotion_cost_per_byte,
+        )
+        return exact_placement(benefits, record_sizes, config.fast_capacity_bytes)
+    return greedy_policy_target(
+        forecast, record_ids, record_sizes, resident, config
+    )
+
+
+def training_popularity_forecast(
+    demand: np.ndarray, validation_start: int, forecast_horizon_windows: int = 1
+) -> np.ndarray:
+    """Return the accepted training-only popularity forecast."""
+
+    return forecast_horizon_windows * np.mean(
+        np.asarray(demand)[:validation_start], axis=0
+    )
+
+
+def greedy_policy_target(
+    forecast: np.ndarray,
+    record_ids: Sequence[int],
+    record_sizes: Mapping[int, int],
+    resident: set[int],
+    config: SimulationConfig,
+) -> PlacementSelection:
+    """Apply the accepted benefit formula and deterministic greedy controller."""
+
     benefits = record_benefits(
         forecast,
         record_ids,
@@ -464,9 +500,33 @@ def _boundary_selection(
         config.slow_read_cost,
         config.promotion_cost_per_byte,
     )
-    if policy_name == "oracle_exact":
-        return exact_placement(benefits, record_sizes, config.fast_capacity_bytes)
     return greedy_placement(benefits, record_sizes, config.fast_capacity_bytes)
+
+
+def select_lru_victim(
+    resident: set[int], last_access: Mapping[int, int]
+) -> int:
+    """Select the accepted LRU victim with record-ID tie-breaking."""
+
+    return min(
+        resident,
+        key=lambda record_id: (last_access[record_id], record_id),
+    )
+
+
+def select_lfu_victim(
+    resident: set[int], frequency: Mapping[int, int], last_access: Mapping[int, int]
+) -> int:
+    """Select the accepted cumulative-LFU victim and deterministic ties."""
+
+    return min(
+        resident,
+        key=lambda record_id: (
+            frequency[record_id],
+            last_access[record_id],
+            record_id,
+        ),
+    )
 
 
 def _apply_target(
@@ -503,11 +563,8 @@ def _handle_lru(
     if not runtime.state.fits(event.record_id):
         return
     while not runtime.state.can_admit(event.record_id):
-        victim = min(
-            runtime.state.resident,
-            key=lambda record_id: (
-                runtime.lru_last_access[record_id], record_id
-            ),
+        victim = select_lru_victim(
+            runtime.state.resident, runtime.lru_last_access
         )
         _record_eviction(runtime, runtime.state.evict(victim), row, in_test)
         runtime.lru_last_access.pop(victim)
@@ -531,13 +588,10 @@ def _handle_lfu(
     if hit or not runtime.state.fits(event.record_id):
         return
     while not runtime.state.can_admit(event.record_id):
-        victim = min(
+        victim = select_lfu_victim(
             runtime.state.resident,
-            key=lambda record_id: (
-                runtime.lfu_frequency[record_id],
-                runtime.lfu_last_access[record_id],
-                record_id,
-            ),
+            runtime.lfu_frequency,
+            runtime.lfu_last_access,
         )
         _record_eviction(runtime, runtime.state.evict(victim), row, in_test)
         runtime.lfu_last_access.pop(victim)

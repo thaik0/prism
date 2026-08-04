@@ -26,7 +26,11 @@ from prism.simulation.replay import (
     POLICY_NAMES,
     PolicyReplayResult,
     ReplayError,
+    greedy_policy_target,
     run_policy_replay,
+    select_lfu_victim,
+    select_lru_victim,
+    training_popularity_forecast,
 )
 from prism.simulation.storage import Migration, PromotionEpisode, StorageState
 
@@ -48,11 +52,15 @@ __all__ = [
     "evaluate_causal_diagnostics",
     "fit_record_demand_projection",
     "greedy_placement",
+    "greedy_policy_target",
     "project_record_demand",
     "record_benefits",
     "ReplayError",
     "POLICY_NAMES",
     "POLICY_DISPLAY_NAMES",
     "run_policy_replay",
+    "select_lfu_victim",
+    "select_lru_victim",
+    "training_popularity_forecast",
     "run_simulated_evaluation",
 ]

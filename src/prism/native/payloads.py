@@ -179,12 +179,34 @@ def build_verified_native_store(
     """Create through C++, audit metadata, and verify every exact payload."""
 
     config, payloads, source_hashes = load_workload_payloads(run_dir)
+    return _build_verified_payload_store(
+        payloads,
+        source_hashes,
+        config.seed,
+        store_dir,
+        fast_capacity_bytes,
+        manifest_path=manifest_path,
+    )
+
+
+def _build_verified_payload_store(
+    payloads: Sequence[GeneratedPayload],
+    source_hashes: Sequence[tuple[str, str]],
+    workload_seed: int,
+    store_dir: str | Path,
+    fast_capacity_bytes: int,
+    *,
+    manifest_path: str | Path | None = None,
+) -> NativeStoreArtifacts:
+    """Shared verified construction for workload and hand-checkable fixtures."""
+
+    resolved_payloads = tuple(payloads)
     summary = build_store(
-        [(record.record_id, record.payload) for record in payloads], store_dir
+        [(record.record_id, record.payload) for record in resolved_payloads], store_dir
     )
     store = TieredStore.open(store_dir, fast_capacity_bytes)
     records = []
-    for expected in payloads:
+    for expected in resolved_payloads:
         metadata = store.record_metadata(expected.record_id)
         if metadata.byte_length != expected.byte_size:
             raise ValueError(
@@ -206,10 +228,10 @@ def build_verified_native_store(
         )
     manifest = NativeStoreManifest(
         payload_schema_version=PAYLOAD_SCHEMA_VERSION,
-        source_workload_hashes=source_hashes,
-        workload_seed=config.seed,
-        record_count=len(payloads),
-        total_payload_bytes=sum(record.byte_size for record in payloads),
+        source_workload_hashes=tuple(sorted(source_hashes)),
+        workload_seed=workload_seed,
+        record_count=len(resolved_payloads),
+        total_payload_bytes=sum(record.byte_size for record in resolved_payloads),
         records=tuple(records),
         native_format_version=summary.format_version,
         capacity_bytes=fast_capacity_bytes,
@@ -226,7 +248,7 @@ def build_verified_native_store(
     )
     if manifest_path is not None:
         write_native_store_manifest(manifest, manifest_path)
-    return NativeStoreArtifacts(summary, payloads, manifest)
+    return NativeStoreArtifacts(summary, resolved_payloads, manifest)
 
 
 def write_native_store_manifest(
