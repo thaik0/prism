@@ -15,13 +15,22 @@ import numpy as np
 import scipy
 import sklearn
 
-from prism.experiments.config import ExperimentManifest, load_manifest
+from prism.experiments.actionability import (
+    CommonWindowProtocol,
+    predictor_window_matrices,
+    regime_sparsity_diagnostics,
+    run_horizon_predictor,
+)
+from prism.experiments.config import ActionabilityManifest, ExperimentManifest, load_manifest
 from prism.experiments.materialize import (
+    resolve_actionability_simulation_config,
+    resolve_actionability_workload_config,
     resolve_simulation_config,
     resolve_workload_config,
 )
 from prism.predictor import run_predictor_experiment
 from prism.simulation import run_simulated_evaluation
+from prism.simulation.actionability import run_horizon_simulation
 from prism.structure import run_structure_recovery
 from prism.workload import generate_workload, persist_workload
 from prism.workload.validate import validate_workload_run, write_validation_report
@@ -75,7 +84,10 @@ def run_experiments(
         if run_dir.exists():
             _require_run_child(destination, run_dir)
             shutil.rmtree(run_dir)
-        variant_id, seed = _parse_experiment_id(current_id)
+        if isinstance(manifest, ActionabilityManifest):
+            regime_id, horizon, seed = _parse_actionability_experiment_id(current_id)
+        else:
+            variant_id, seed = _parse_experiment_id(current_id)
         entry.update(
             {
                 "status": "running",
@@ -92,7 +104,12 @@ def run_experiments(
         _write_json(destination / "experiment_index.json", index)
         emit(f"Running {current_id}")
         try:
-            result = _execute_run(manifest, variant_id, seed, run_dir, entry)
+            if isinstance(manifest, ActionabilityManifest):
+                result = _execute_actionability_run(
+                    manifest, regime_id, horizon, seed, run_dir, entry
+                )
+            else:
+                result = _execute_run(manifest, variant_id, seed, run_dir, entry)
             entry.update(result)
             entry["status"] = "completed"
             entry["stage_reached"] = "completed"
@@ -112,6 +129,125 @@ def run_experiments(
     completed = sum(entry["status"] == "completed" for entry in index["runs"])
     failed = sum(entry["status"] == "failed" for entry in index["runs"])
     return ExperimentExecution(destination, completed, failed, tuple(reused))
+
+
+def _execute_actionability_run(
+    manifest: ActionabilityManifest,
+    regime_id: str,
+    horizon: int,
+    seed: int,
+    run_dir: Path,
+    entry: dict[str, Any],
+) -> dict[str, Any]:
+    regime = manifest.regime(regime_id)
+    workload_config = resolve_actionability_workload_config(manifest, regime, seed)
+    workload_config_path = run_dir / "resolved_workload_config.json"
+    _write_json(workload_config_path, workload_config.to_resolved_dict())
+    predictor_config_path = run_dir / "resolved_predictor_config.json"
+    _write_json(
+        predictor_config_path,
+        {
+            "forecast_horizon_windows": horizon,
+            "base_predictor_config_sha256": _sha256(manifest.predictor_config),
+        },
+    )
+    entry["stage_reached"] = "workload_generation"
+    _write_json(run_dir / "run_status.json", entry)
+    workload_result = generate_workload(workload_config)
+    workload_dir = run_dir / "workload"
+    persist_workload(workload_result, workload_dir)
+    workload_validation = validate_workload_run(workload_dir)
+    write_validation_report(workload_validation, workload_dir / "workload_validation.json")
+    sparsity = regime_sparsity_diagnostics(
+        workload_result.hidden_ground_truth.to_dict(),
+        workload_config.num_windows,
+        workload_config.num_working_sets,
+        workload_validation.report,
+    )
+
+    simulation_config = resolve_actionability_simulation_config(
+        workload_result.hidden_ground_truth.record_sizes_bytes
+    )
+    simulation_config_path = run_dir / "resolved_simulation_config.json"
+    _write_json(
+        simulation_config_path,
+        {
+            **simulation_config.to_dict(),
+            "forecast_horizon_windows": horizon,
+        },
+    )
+    resolved_hashes = {
+        "resolved_workload_config.json": _sha256(workload_config_path),
+        "resolved_predictor_config.json": _sha256(predictor_config_path),
+        "resolved_simulation_config.json": _sha256(simulation_config_path),
+        "structure_config": _sha256(manifest.structure_config),
+        "predictor_config": _sha256(manifest.predictor_config),
+    }
+    entry["resolved_configuration_sha256"] = resolved_hashes
+    entry["source_artifact_sha256"] = workload_validation.report["source_artifact_sha256"]
+
+    entry["stage_reached"] = "structure"
+    _write_json(run_dir / "run_status.json", entry)
+    structure = run_structure_recovery(
+        workload_dir, manifest.structure_config, run_dir / "structure"
+    )
+    if not structure.learned_structure.converged:
+        raise ExperimentRunError("NMF did not converge")
+
+    protocol = CommonWindowProtocol(600, 600, 800, 800, 1000, 4)
+    entry["stage_reached"] = "predictor"
+    _write_json(run_dir / "run_status.json", entry)
+    predictor = run_horizon_predictor(
+        workload_dir,
+        manifest.structure_config,
+        manifest.predictor_config,
+        run_dir / "predictor",
+        horizon,
+        protocol,
+    )
+    if not predictor.training_structure.converged or not predictor.predictor.converged:
+        raise ExperimentRunError("one or more horizon predictor fits did not converge")
+    probability, intensity, available = predictor_window_matrices(predictor)
+
+    entry["stage_reached"] = "simulation"
+    _write_json(run_dir / "run_status.json", entry)
+    simulation = run_horizon_simulation(
+        workload_result.observable_events,
+        predictor.demand_matrix.X,
+        predictor.demand_matrix.record_ids,
+        workload_result.hidden_ground_truth.record_sizes_bytes,
+        predictor.training_structure.membership_matrix,
+        predictor.training_structure.factor_ids,
+        probability,
+        intensity,
+        available,
+        simulation_config,
+        protocol,
+        horizon,
+        workload_result.hidden_ground_truth.to_dict(),
+        run_dir / "simulation",
+        run_dir / "actionability",
+        regime=regime_id,
+        seed=seed,
+    )
+    if simulation.replay.capacity_violations:
+        raise ExperimentRunError("simulation capacity invariant failed")
+    if not simulation.simulation_report["controller_diagnostics"]["all_exact_windows_optimal"]:
+        raise ExperimentRunError("one or more exact solves were not optimal")
+    scientific = {
+        "workload_demonstrations": workload_validation.demonstrations_passed,
+        "workload_intensity_signal": workload_validation.intensity_signal_passed,
+        "structure_recovery": structure.recovery_evaluation.representative_gate_passed,
+        "predictor": predictor.evaluation.report["scientific_gates"],
+        "legacy_simulation": simulation.simulation_report["scientific_gates"],
+        "regime_sparsity": sparsity,
+    }
+    return {
+        "resolved_configuration_sha256": resolved_hashes,
+        "source_artifact_sha256": workload_validation.report["source_artifact_sha256"],
+        "artifact_sha256": _hash_run_artifacts(run_dir),
+        "scientific_gate_outcomes": scientific,
+    }
 
 
 def _execute_run(
@@ -205,30 +341,35 @@ def _execute_run(
     }
 
 
-def _initial_index(manifest: ExperimentManifest) -> dict[str, Any]:
+def _initial_index(manifest: ExperimentManifest | ActionabilityManifest) -> dict[str, Any]:
     runs = []
     for experiment_id in manifest.experiment_ids:
-        variant_id, seed = _parse_experiment_id(experiment_id)
-        runs.append(
-            {
+        if isinstance(manifest, ActionabilityManifest):
+            regime_id, horizon, seed = _parse_actionability_experiment_id(experiment_id)
+            identity = {"regime": regime_id, "horizon": horizon, "seed": seed}
+        else:
+            variant_id, seed = _parse_experiment_id(experiment_id)
+            identity = {"variant_id": variant_id, "seed": seed}
+        stage_directories = {
+            "workload": f"runs/{experiment_id}/workload",
+            "structure": f"runs/{experiment_id}/structure",
+            "predictor": f"runs/{experiment_id}/predictor",
+            "simulation": f"runs/{experiment_id}/simulation",
+        }
+        if isinstance(manifest, ActionabilityManifest):
+            stage_directories["actionability"] = f"runs/{experiment_id}/actionability"
+        runs.append({
                 "experiment_id": experiment_id,
-                "variant_id": variant_id,
-                "seed": seed,
+                **identity,
                 "status": "pending",
                 "stage_reached": "pending",
                 "resolved_configuration_sha256": {},
                 "source_artifact_sha256": {},
                 "artifact_sha256": {},
                 "scientific_gate_outcomes": {},
-                "stage_directories": {
-                    "workload": f"runs/{experiment_id}/workload",
-                    "structure": f"runs/{experiment_id}/structure",
-                    "predictor": f"runs/{experiment_id}/predictor",
-                    "simulation": f"runs/{experiment_id}/simulation",
-                },
+                "stage_directories": stage_directories,
                 "failure": None,
-            }
-        )
+            })
     return {
         "schema_version": 1,
         "source_manifest_sha256": manifest.sha256,
@@ -237,7 +378,7 @@ def _initial_index(manifest: ExperimentManifest) -> dict[str, Any]:
     }
 
 
-def _resolved_manifest(manifest: ExperimentManifest) -> dict[str, Any]:
+def _resolved_manifest(manifest: ExperimentManifest | ActionabilityManifest) -> dict[str, Any]:
     return {
         **manifest.raw,
         "source_manifest_sha256": manifest.sha256,
@@ -290,11 +431,14 @@ def _validate_completed_run(
 
 
 def _write_completion_summary(
-    destination: Path, manifest: ExperimentManifest, index: dict[str, Any]
+    destination: Path, manifest: ExperimentManifest | ActionabilityManifest, index: dict[str, Any]
 ) -> None:
-    from prism.experiments.aggregate import write_aggregate_outputs
-
-    write_aggregate_outputs(destination, manifest)
+    if isinstance(manifest, ActionabilityManifest):
+        from prism.experiments.actionability_aggregate import write_actionability_outputs
+        write_actionability_outputs(destination, manifest)
+    else:
+        from prism.experiments.aggregate import write_aggregate_outputs
+        write_aggregate_outputs(destination, manifest)
 
 
 def _hash_run_artifacts(run_dir: Path) -> dict[str, str]:
@@ -327,6 +471,20 @@ def _parse_experiment_id(experiment_id: str) -> tuple[str, int]:
     except ValueError as error:
         raise ExperimentRunError(f"invalid experiment ID: {experiment_id}") from error
     return variant, seed
+
+
+def _parse_actionability_experiment_id(experiment_id: str) -> tuple[str, int, int]:
+    marker = "__seed_"
+    if marker not in experiment_id or "__h" not in experiment_id:
+        raise ExperimentRunError(f"invalid actionability experiment ID: {experiment_id}")
+    cell, raw_seed = experiment_id.rsplit(marker, 1)
+    regime, raw_horizon = cell.rsplit("__h", 1)
+    try:
+        horizon = int(raw_horizon)
+        seed = int(raw_seed)
+    except ValueError as error:
+        raise ExperimentRunError(f"invalid actionability experiment ID: {experiment_id}") from error
+    return regime, horizon, seed
 
 
 def _require_empty_output(destination: Path) -> None:

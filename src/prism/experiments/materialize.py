@@ -8,7 +8,12 @@ from pathlib import Path
 import statistics
 from typing import Sequence
 
-from prism.experiments.config import ExperimentManifest, VariantDefinition
+from prism.experiments.config import (
+    ActionabilityManifest,
+    ExperimentManifest,
+    RegimeDefinition,
+    VariantDefinition,
+)
 from prism.simulation import SimulationConfig
 from prism.workload import WorkloadConfig
 
@@ -80,4 +85,51 @@ def materialize_run(
     simulation = resolve_simulation_config(variant, record_sizes)
     return MaterializedRun(
         f"{variant.id}__seed_{seed}", variant, seed, workload, simulation
+    )
+
+
+def resolve_actionability_workload_config(
+    manifest: ActionabilityManifest,
+    regime: RegimeDefinition,
+    seed: int,
+) -> WorkloadConfig:
+    """Apply only the three frozen regime fields and the explicit seed."""
+
+    if seed not in manifest.seeds:
+        raise ValueError(f"seed is not frozen in the manifest: {seed}")
+    base = WorkloadConfig.from_json(manifest.base_workload_config)
+    raw = base.to_resolved_dict()
+    raw.update(regime.workload_overrides)
+    raw["seed"] = seed
+    resolved = WorkloadConfig.from_dict(raw)
+    base_resolved = base.to_resolved_dict()
+    changed = {
+        key for key, value in resolved.to_resolved_dict().items()
+        if value != base_resolved[key]
+    }
+    expected = {
+        key for key, value in regime.workload_overrides.items()
+        if value != base_resolved[key]
+    }
+    if seed != base.seed:
+        expected.add("seed")
+    if changed != expected:
+        raise ValueError("actionability regime changed unintended workload fields")
+    return resolved
+
+
+def resolve_actionability_simulation_config(
+    record_sizes: Sequence[int],
+    *,
+    fast_read_cost: float = 1.0,
+    slow_read_cost: float = 10.0,
+) -> SimulationConfig:
+    """Resolve the accepted 25% / two-saved-read storage configuration."""
+
+    baseline = VariantDefinition("baseline", "baseline", {}, 0.25, 2.0)
+    return resolve_simulation_config(
+        baseline,
+        record_sizes,
+        fast_read_cost=fast_read_cost,
+        slow_read_cost=slow_read_cost,
     )

@@ -574,9 +574,13 @@ def _validate_bursts(
     for working_set_id, working_set_bursts in sorted(by_working_set.items()):
         ordered = sorted(working_set_bursts, key=lambda burst: burst["start_window"])
         for previous, current in zip(ordered, ordered[1:]):
-            if previous["end_window_exclusive"] > current["start_window"]:
+            earliest = (
+                previous["end_window_exclusive"]
+                + config.post_burst_cooldown_windows
+            )
+            if earliest > current["start_window"]:
                 raise WorkloadValidationError(
-                    f"working set {working_set_id} has overlapping bursts"
+                    f"working set {working_set_id} has overlapping bursts or violates cooldown"
                 )
     return bursts
 
@@ -708,9 +712,17 @@ def _validate_activation_trials(
                 and burst["start_window"] < window_id < burst["end_window_exclusive"]
                 for burst in bursts
             )
+            cooling_down = any(
+                burst["working_set_id"] == working_set_id
+                and burst["end_window_exclusive"] <= window_id
+                < burst["end_window_exclusive"]
+                + config.post_burst_cooldown_windows
+                for burst in bursts
+            )
             has_trial = (window_id, working_set_id) in trial_by_key
-            if active_from_prior_window == has_trial:
-                expected = "absent" if active_from_prior_window else "present"
+            trial_ineligible = active_from_prior_window or cooling_down
+            if trial_ineligible == has_trial:
+                expected = "absent" if trial_ineligible else "present"
                 raise WorkloadValidationError(
                     f"activation trial for window {window_id}, working set {working_set_id} must be {expected}"
                 )

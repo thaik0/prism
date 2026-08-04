@@ -47,6 +47,7 @@ class WorkloadConfig:
     baseline_access_weight: float
     noise_access_weight: float
     burst_intensity_context_weight: float = 0.0
+    post_burst_cooldown_windows: int = 0
 
     def __post_init__(self) -> None:
         _require_integer("seed", self.seed)
@@ -71,6 +72,11 @@ class WorkloadConfig:
         )
         for name in positive_integer_fields:
             _require_integer(name, getattr(self, name), minimum=1)
+        _require_integer(
+            "post_burst_cooldown_windows",
+            self.post_burst_cooldown_windows,
+            minimum=0,
+        )
 
         if self.num_windows < 2:
             raise WorkloadConfigError("num_windows must be at least 2")
@@ -170,7 +176,10 @@ class WorkloadConfig:
 
         expected = {field.name for field in fields(cls)}
         supplied = set(raw)
-        optional_defaults = {"burst_intensity_context_weight": 0.0}
+        optional_defaults = {
+            "burst_intensity_context_weight": 0.0,
+            "post_burst_cooldown_windows": 0,
+        }
         missing = sorted(expected - supplied - set(optional_defaults))
         unknown = sorted(supplied - expected)
         if missing:
@@ -200,14 +209,28 @@ class WorkloadConfig:
         return cls.from_dict(raw)
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-compatible canonical representation."""
+        """Return the legacy artifact representation.
+
+        A zero cooldown is omitted so every accepted pre-Milestone-5.5 workload
+        remains byte-identical. New code that needs an explicit canonical value
+        must use :meth:`to_resolved_dict`.
+        """
 
         result = asdict(self)
+        if result["post_burst_cooldown_windows"] == 0:
+            del result["post_burst_cooldown_windows"]
         result["request_types"] = list(self.request_types)
         result["operation_type_probabilities"] = dict(
             self.operation_type_probabilities
         )
         return result
+
+    def to_resolved_dict(self) -> dict[str, Any]:
+        """Return a canonical representation with an explicit cooldown."""
+
+        result = self.to_dict()
+        result["post_burst_cooldown_windows"] = self.post_burst_cooldown_windows
+        return dict(sorted(result.items()))
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:

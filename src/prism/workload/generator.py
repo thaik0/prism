@@ -121,6 +121,7 @@ def generate_workload(config: WorkloadConfig) -> WorkloadResult:
     bursts: list[Burst] = []
     source_counts: list[WindowAccessSourceCounts] = []
     active_bursts: dict[int, Burst] = {}
+    next_eligible_start = [0] * config.num_working_sets
 
     previous_precursor_scores = tuple(0.0 for _ in range(config.num_working_sets))
     next_event_id = 0
@@ -146,7 +147,10 @@ def generate_workload(config: WorkloadConfig) -> WorkloadResult:
         }
 
         for working_set_id in range(config.num_working_sets):
-            if working_set_id in active_bursts:
+            if (
+                working_set_id in active_bursts
+                or window_id < next_eligible_start[working_set_id]
+            ):
                 continue
             contextual_probability, activation_probability = (
                 calculate_activation_probabilities(
@@ -178,6 +182,10 @@ def generate_workload(config: WorkloadConfig) -> WorkloadResult:
                 )
                 bursts.append(burst)
                 active_bursts[working_set_id] = burst
+                next_eligible_start[working_set_id] = (
+                    burst.end_window_exclusive
+                    + config.post_burst_cooldown_windows
+                )
                 created_burst_id = burst.burst_id
             activation_trials.append(
                 ActivationTrial(

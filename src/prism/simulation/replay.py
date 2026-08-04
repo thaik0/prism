@@ -162,6 +162,9 @@ def run_policy_replay(
     validation_start: int,
     test_start: int,
     forecast_variants: Mapping[str, np.ndarray] | None = None,
+    forecast_horizon_windows: int = 1,
+    validation_decision_end: int | None = None,
+    test_evaluation_end: int | None = None,
 ) -> PolicyReplayResult:
     """Warm every policy independently on validation and measure only test."""
 
@@ -185,8 +188,27 @@ def run_policy_replay(
         test_start,
     )
     num_windows = demand.shape[0]
-    test_windows = np.arange(test_start, num_windows, dtype=np.int64)
-    test_events = tuple(event for event in events if event.window_id >= test_start)
+    if (
+        isinstance(forecast_horizon_windows, bool)
+        or not isinstance(forecast_horizon_windows, int)
+        or forecast_horizon_windows <= 0
+    ):
+        raise ReplayError("forecast_horizon_windows must be a positive integer")
+    validation_place_end = (
+        test_start if validation_decision_end is None else validation_decision_end
+    )
+    evaluation_end = num_windows if test_evaluation_end is None else test_evaluation_end
+    if not validation_start <= validation_place_end <= test_start:
+        raise ReplayError("validation decision end is invalid")
+    if not test_start < evaluation_end <= num_windows:
+        raise ReplayError("test evaluation end is invalid")
+    if evaluation_end - 1 + forecast_horizon_windows > num_windows:
+        raise ReplayError("final evaluation horizon crosses the trace boundary")
+    test_windows = np.arange(test_start, evaluation_end, dtype=np.int64)
+    test_events = tuple(
+        event for event in events
+        if test_start <= event.window_id < evaluation_end
+    )
     event_indices = np.asarray(
         [event.event_index for event in test_events], dtype=np.int64
     )
@@ -219,7 +241,10 @@ def run_policy_replay(
         policy_promotions: list[np.ndarray] = []
         validation_setup = {"promotion_count": 0, "bytes_promoted": 0, "promotion_cost": 0.0}
         if policy_name == "training_popularity_static":
-            training_mean = np.mean(demand[:validation_start], axis=0)
+            training_mean = (
+                forecast_horizon_windows
+                * np.mean(demand[:validation_start], axis=0)
+            )
             setup_selection = _boundary_selection(
                 policy_name,
                 training_mean,
@@ -238,7 +263,7 @@ def run_policy_replay(
             _apply_target(runtime, setup_selection, _WindowRow(), False, config, set())
 
         previous_target: set[int] | None = None
-        for window_id in range(validation_start, num_windows):
+        for window_id in range(validation_start, evaluation_end):
             in_test = window_id >= test_start
             row = _WindowRow()
             promoted_records: set[int] = set()
@@ -247,11 +272,18 @@ def run_policy_replay(
             should_place = policy_name in BOUNDARY_POLICIES and policy_name not in {
                 "training_popularity_static"
             }
+            if window_id < test_start and window_id >= validation_place_end:
+                should_place = False
             if policy_name == "validation_final_frozen" and in_test:
                 should_place = False
             if should_place:
                 forecast = _boundary_forecast(
-                    policy_name, window_id, demand, variants, available
+                    policy_name,
+                    window_id,
+                    demand,
+                    variants,
+                    available,
+                    forecast_horizon_windows,
                 )
                 selection = _boundary_selection(
                     policy_name,
@@ -381,9 +413,15 @@ def _boundary_forecast(
     demand: np.ndarray,
     variants: Mapping[str, np.ndarray],
     available: np.ndarray,
+    horizon: int,
 ) -> np.ndarray:
     if policy_name == "recent_demand_greedy":
-        return np.asarray(demand[window_id - 1], dtype=np.float64)
+        if window_id - horizon < 0:
+            raise ReplayError("recent-demand horizon lacks observable history")
+        return np.asarray(
+            np.sum(demand[window_id - horizon : window_id], axis=0),
+            dtype=np.float64,
+        )
     if policy_name in {
         "predictive_greedy",
         "validation_final_frozen",
@@ -401,7 +439,12 @@ def _boundary_forecast(
             else policy_name
         )
         return variants[variant_name][window_id]
-    return np.asarray(demand[window_id], dtype=np.float64)
+    if window_id + horizon > len(demand):
+        raise ReplayError("oracle horizon crosses the trace boundary")
+    return np.asarray(
+        np.sum(demand[window_id : window_id + horizon], axis=0),
+        dtype=np.float64,
+    )
 
 
 def _boundary_selection(

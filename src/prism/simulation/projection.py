@@ -39,6 +39,8 @@ class ProjectionResult:
     observable_factor_demand: np.ndarray
     predicted_factor_demand: np.ndarray
     predicted_record_demand: np.ndarray
+    cumulative_future_factor_demand: np.ndarray | None = None
+    cumulative_future_record_demand: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -49,6 +51,15 @@ class ProjectionResult:
             value = np.array(getattr(self, name), dtype=np.float64, copy=True)
             value.setflags(write=False)
             object.__setattr__(self, name, value)
+        for name in (
+            "cumulative_future_factor_demand",
+            "cumulative_future_record_demand",
+        ):
+            raw = getattr(self, name)
+            if raw is not None:
+                value = np.array(raw, dtype=np.float64, copy=True)
+                value.setflags(write=False)
+                object.__setattr__(self, name, value)
 
 
 def fit_record_demand_projection(
@@ -58,6 +69,9 @@ def fit_record_demand_projection(
     conditional_intensity: np.ndarray,
     prediction_available: np.ndarray,
     train_end: int,
+    *,
+    forecast_horizon_windows: int = 1,
+    training_target_window_ids: np.ndarray | None = None,
 ) -> ProjectionResult:
     """Fit one nonnegative calibration per factor using training targets only."""
 
@@ -70,7 +84,18 @@ def fit_record_demand_projection(
         train_end,
     )
     factor_demand = X @ membership.T
-    training_targets = np.flatnonzero(available & (np.arange(len(X)) < train_end))
+    if (
+        isinstance(forecast_horizon_windows, bool)
+        or not isinstance(forecast_horizon_windows, int)
+        or forecast_horizon_windows <= 0
+    ):
+        raise ProjectionError("forecast_horizon_windows must be a positive integer")
+    if training_target_window_ids is None:
+        training_targets = np.flatnonzero(available & (np.arange(len(X)) < train_end))
+    else:
+        training_targets = np.asarray(training_target_window_ids, dtype=np.int64)
+        if training_targets.ndim != 1 or not np.all(available[training_targets]):
+            raise ProjectionError("explicit training targets must be available")
     if not len(training_targets):
         raise ProjectionError("no available training target windows")
     if np.any(training_targets <= 0):
@@ -80,6 +105,10 @@ def fit_record_demand_projection(
     coefficients = np.empty((factor_count, 3), dtype=np.float64)
     residual_norms = np.empty(factor_count, dtype=np.float64)
     activation_intensity = probability * intensity
+    cumulative_factor = _cumulative_future(factor_demand, forecast_horizon_windows)
+    cumulative_record = _cumulative_future(X, forecast_horizon_windows)
+    if np.any(training_targets + forecast_horizon_windows > len(X)):
+        raise ProjectionError("training horizon crosses the chronological boundary")
     for factor_id in range(factor_count):
         design = np.column_stack(
             (
@@ -89,7 +118,7 @@ def fit_record_demand_projection(
             )
         )
         fitted, residual_norm = nnls(
-            design, factor_demand[training_targets, factor_id]
+            design, cumulative_factor[training_targets, factor_id]
         )
         coefficients[factor_id] = fitted
         residual_norms[factor_id] = residual_norm
@@ -99,7 +128,11 @@ def fit_record_demand_projection(
     )
     training_factor_projection = predicted_factor[training_targets] @ membership
     residual_baseline = np.mean(
-        np.maximum(0.0, X[training_targets] - training_factor_projection), axis=0
+        np.maximum(
+            0.0,
+            cumulative_record[training_targets] - training_factor_projection,
+        ),
+        axis=0,
     )
     model = ProjectionModel(
         membership_matrix=membership,
@@ -109,7 +142,21 @@ def fit_record_demand_projection(
         training_target_window_ids=training_targets.astype(np.int64),
     )
     predicted_record = project_record_demand(predicted_factor, available, model)
-    return ProjectionResult(model, factor_demand, predicted_factor, predicted_record)
+    return ProjectionResult(
+        model,
+        factor_demand,
+        predicted_factor,
+        predicted_record,
+        cumulative_factor,
+        cumulative_record,
+    )
+
+
+def _cumulative_future(values: np.ndarray, horizon: int) -> np.ndarray:
+    result = np.full(values.shape, np.nan, dtype=np.float64)
+    for start in range(len(values) - horizon + 1):
+        result[start] = np.sum(values[start : start + horizon], axis=0)
+    return result
 
 
 def project_record_demand(
