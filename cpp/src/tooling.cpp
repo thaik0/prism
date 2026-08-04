@@ -408,6 +408,12 @@ Expected<ReplayReport> replay_trace_json(
 
 Expected<bool> write_deterministic_report(
     const std::filesystem::path& output_path, const std::string& contents) {
+  if (contents.size() >
+      static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
+    return unexpected(make_error(StoreErrorCode::arithmetic_overflow,
+                                 "report is too large for stream output",
+                                 output_path));
+  }
   std::ofstream stream(output_path, std::ios::binary | std::ios::trunc);
   if (!stream) {
     return unexpected(make_error(StoreErrorCode::io_error,

@@ -16,6 +16,7 @@
 #include <zlib.h>
 
 #include "prism_store_generated.h"
+#include "prism/storage/detail/checked_arithmetic.hpp"
 
 namespace prism::storage {
 namespace {
@@ -45,7 +46,9 @@ Expected<std::uint64_t> regular_file_size(const std::filesystem::path& path,
 
 Expected<std::vector<std::uint8_t>> read_file(
     const std::filesystem::path& path, std::uint64_t length) {
-  if (length > std::numeric_limits<std::size_t>::max()) {
+  if (length > std::numeric_limits<std::size_t>::max() ||
+      length > static_cast<std::uint64_t>(
+                   std::numeric_limits<std::streamsize>::max())) {
     return unexpected(make_error(StoreErrorCode::arithmetic_overflow,
                                  "file length does not fit in memory", path));
   }
@@ -87,6 +90,57 @@ std::uint32_t compute_crc32(const std::vector<std::byte>& payload) noexcept {
     consumed += chunk_size;
   }
   return static_cast<std::uint32_t>(checksum);
+}
+
+Expected<bool> validate_store_metadata(
+    const std::vector<RecordMetadata>& records,
+    std::uint64_t declared_data_length, std::uint64_t actual_data_length,
+    const std::filesystem::path& context_path) {
+  if (declared_data_length != actual_data_length) {
+    return unexpected(make_error(StoreErrorCode::data_file_mismatch,
+                                 "declared data length does not match the file",
+                                 context_path));
+  }
+  if (records.empty()) {
+    return unexpected(make_error(StoreErrorCode::index_corrupt,
+                                 "store index contains no records", context_path));
+  }
+  std::uint64_t expected_offset = 0;
+  std::optional<RecordId> previous_id;
+  for (const auto& record : records) {
+    if (previous_id && record.record_id <= *previous_id) {
+      return unexpected(make_error(StoreErrorCode::index_corrupt,
+                                   "record IDs are not strictly increasing",
+                                   context_path));
+    }
+    if (record.byte_length == 0) {
+      return unexpected(make_error(StoreErrorCode::index_corrupt,
+                                   "record length must be positive", context_path));
+    }
+    if (record.byte_offset != expected_offset) {
+      return unexpected(make_error(
+          StoreErrorCode::index_corrupt,
+          "record byte ranges are not contiguous and ordered", context_path));
+    }
+    auto end = detail::checked_add_bytes(record.byte_offset, record.byte_length,
+                                         record.record_id, context_path);
+    if (!end) {
+      return unexpected(end.error());
+    }
+    if (*end > declared_data_length) {
+      return unexpected(make_error(StoreErrorCode::index_corrupt,
+                                   "record byte range exceeds the data file",
+                                   context_path));
+    }
+    expected_offset = *end;
+    previous_id = record.record_id;
+  }
+  if (expected_offset != declared_data_length) {
+    return unexpected(make_error(StoreErrorCode::data_file_mismatch,
+                                 "record ranges do not cover the data file",
+                                 context_path));
+  }
+  return true;
 }
 
 Expected<LoadedStoreIndex> load_store_index(
@@ -134,15 +188,10 @@ Expected<LoadedStoreIndex> load_store_index(
         StoreErrorCode::unsupported_format_version,
         "store index uses an unsupported format version", index_path));
   }
-  if (root->data_file_length() != *data_length) {
-    return unexpected(make_error(StoreErrorCode::data_file_mismatch,
-                                 "declared data length does not match the file",
-                                 data_path));
-  }
   const auto* records = root->records();
-  if (records == nullptr || records->size() == 0U) {
+  if (records == nullptr) {
     return unexpected(make_error(StoreErrorCode::index_corrupt,
-                                 "store index contains no records", index_path));
+                                 "store index has no records vector", index_path));
   }
 
   LoadedStoreIndex result{store_directory, data_path, index_path,
@@ -154,49 +203,19 @@ Expected<LoadedStoreIndex> load_store_index(
                                  "could not allocate record metadata", index_path));
   }
 
-  std::uint64_t expected_offset = 0;
-  std::optional<RecordId> previous_id;
   for (const fb::Record* record : *records) {
     if (record == nullptr) {
       return unexpected(make_error(StoreErrorCode::index_corrupt,
                                    "store index contains a null record", index_path));
     }
-    const RecordId id = record->record_id();
-    const std::uint64_t offset = record->byte_offset();
-    const std::uint64_t length = record->byte_length();
-    if (previous_id && id <= *previous_id) {
-      return unexpected(make_error(StoreErrorCode::index_corrupt,
-                                   "record IDs are not strictly increasing",
-                                   index_path));
-    }
-    if (length == 0) {
-      return unexpected(make_error(StoreErrorCode::index_corrupt,
-                                   "record length must be positive", index_path));
-    }
-    if (offset != expected_offset) {
-      return unexpected(make_error(StoreErrorCode::index_corrupt,
-                                   "record byte ranges are not contiguous and ordered",
-                                   index_path));
-    }
-    if (length > std::numeric_limits<std::uint64_t>::max() - offset) {
-      return unexpected(make_error(StoreErrorCode::arithmetic_overflow,
-                                   "record byte range overflows", index_path));
-    }
-    const std::uint64_t end = offset + length;
-    if (end > root->data_file_length()) {
-      return unexpected(make_error(StoreErrorCode::index_corrupt,
-                                   "record byte range exceeds the data file",
-                                   index_path));
-    }
-    result.records.push_back(
-        RecordMetadata{id, offset, length, record->crc32()});
-    expected_offset = end;
-    previous_id = id;
+    result.records.push_back(RecordMetadata{
+        record->record_id(), record->byte_offset(), record->byte_length(),
+        record->crc32()});
   }
-  if (expected_offset != root->data_file_length()) {
-    return unexpected(make_error(StoreErrorCode::data_file_mismatch,
-                                 "record ranges do not cover the data file",
-                                 data_path));
+  auto valid = validate_store_metadata(result.records, root->data_file_length(),
+                                       *data_length, index_path);
+  if (!valid) {
+    return unexpected(valid.error());
   }
   return result;
 }

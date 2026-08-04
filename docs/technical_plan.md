@@ -3,7 +3,7 @@
 ## Document status
 
 **Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 5.5 complete — Predictive Actionability Diagnosis and stable cost-aware tiering reframe
+**Current implementation phase:** Milestone 6 complete — Native C++ two-tier storage substrate
 
 **Last major planning revision:** August 2026
 
@@ -538,7 +538,7 @@ The storage implementation should remain deliberately simple to avoid hidden beh
 4. Simulated predictive placement
 5. Rigorous experiments and error analysis
 6. Predictive actionability diagnosis and thesis reframe (Milestone 5.5)
-7. Real C++ RAM/SSD tiering engine, deferred pending a newly authorized milestone
+7. Real C++ RAM/file-backed tiering engine (Milestone 6 complete)
 8. Python/C++ integration
 9. Open-source LLM inference simulator integration
 10. Real heterogeneous CPU/GPU/storage deployment
@@ -684,5 +684,29 @@ supported near-term thesis is learned latent-demand structure feeding a
 deterministic, auditable, stable cost-aware placement controller. Dynamic
 activation/intensity forecasts remain a measured but presently unactionable
 research component. Package names and implementation history remain unchanged,
-and this result does not authorize post-result predictor tuning or begin real
-storage work.
+and this result does not authorize post-result predictor tuning. The subsequently
+authorized Milestone 6 adds the policy-agnostic real storage substrate without
+changing that scientific conclusion.
+
+---
+
+# 25. Milestone 6 Native Storage Instantiation
+
+Milestone 6 implements a standalone C++17 immutable record engine. A deterministic
+builder concatenates payloads into `store.data` and writes a FlatBuffers version-1
+`PRSM` index containing checked 64-bit offsets and lengths plus zlib CRC32 values.
+Opening validates the full metadata and exact file length without eagerly reading
+all payloads.
+
+The authoritative file remains read-only. Nonresident client reads and every
+promotion use `pread` and verify the complete payload checksum. The fast tier
+owns complete byte buffers under strict capacity. Individual promotion never
+evicts, slow reads never promote, and eviction never writes back. Exact-target
+transitions stage and verify all incoming data and construct the complete next
+state before a no-throw commit swap, so precommit failures preserve residency.
+
+The engine is policy-agnostic. Native inspection and JSONL replay expose stable
+errors, logical counters, exact snapshots, corruption handling, and deterministic
+artifacts. The milestone adds no predictor/Python integration, policy ranking,
+concurrency, asynchronous I/O, mutation, or performance claim. Ordinary file I/O
+remains subject to the operating-system page cache.

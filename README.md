@@ -15,9 +15,15 @@ Milestone 4 consumes frozen predictor artifacts, calibrates
 record-demand projection on training windows only, warms six independent policies
 on validation, and evaluates access plus promotion cost on identical test events.
 
-The storage tiers and costs are simulated. No real RAM, SSD, filesystem I/O,
-wall-clock latency, asynchronous migration, C++, or production storage engine is
-implemented yet.
+**Milestone 6** adds a standalone C++17 storage library and tools: a deterministic
+FlatBuffers-indexed immutable store, validated file-backed slow reads, explicitly
+owned byte-constrained fast-tier buffers, atomic exact-target placement,
+structured errors/counters, full inspection, and deterministic JSONL replay.
+
+Milestones 1--5.5 continue to use simulated costs. Milestone 6 provides real
+filesystem reads and process-owned memory, but it collects no canonical
+wall-clock timing and makes no RAM/SSD performance-superiority claim. Python/C++
+integration and asynchronous migration remain unimplemented.
 
 ## Requirements
 
@@ -26,6 +32,7 @@ implemented yet.
 - SciPy
 - scikit-learn
 - pytest, for development tests
+- CMake 3.24+, a C++17 compiler, and zlib, for Milestone 6
 
 The Milestone 1 generator itself remains standard-library-only.
 
@@ -177,6 +184,33 @@ variation.
 ```bash
 python3 -m pytest -q
 ```
+
+## Build and exercise the native storage engine
+
+```bash
+cmake -S cpp -B build/cpp-debug \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DPRISM_BUILD_TESTS=ON \
+  -DPRISM_WARNINGS_AS_ERRORS=ON
+cmake --build build/cpp-debug --parallel
+ctest --test-dir build/cpp-debug --output-on-failure
+
+build/cpp-debug/prism_store_build \
+  --manifest cpp/tests/fixtures/store_manifest.json \
+  --output-dir /tmp/prism_store
+build/cpp-debug/prism_store_inspect \
+  --store-dir /tmp/prism_store --verify-all
+build/cpp-debug/prism_store_replay \
+  --store-dir /tmp/prism_store \
+  --capacity-bytes 40 \
+  --trace cpp/tests/fixtures/replay.jsonl \
+  --output /tmp/prism_replay.json
+```
+
+The first configure fetches pinned dependency releases into the ignored build
+tree. See [the native engine documentation](docs/native_storage_engine.md) for
+the format, APIs, error/counter contracts, atomicity, determinism, sanitizer
+commands, and limitations.
 
 See [the Milestone 1 workload documentation](docs/workload_generator.md) for the
 generation model, schemas, engineering and scientific validation rules, and

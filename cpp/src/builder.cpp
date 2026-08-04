@@ -15,6 +15,7 @@
 #include <zlib.h>
 
 #include "prism/storage/store_format.hpp"
+#include "prism/storage/detail/checked_arithmetic.hpp"
 #include "prism_store_generated.h"
 
 namespace prism::storage {
@@ -42,9 +43,11 @@ Expected<std::vector<ManifestRecord>> load_manifest(
   try {
     nlohmann::json document;
     stream >> document;
-    if (!stream.eof() && stream.fail()) {
+    stream >> std::ws;
+    if (stream.peek() != std::char_traits<char>::eof()) {
       return unexpected(make_error(StoreErrorCode::malformed_manifest,
-                                   "could not read manifest", manifest_path));
+                                   "manifest contains trailing content",
+                                   manifest_path));
     }
     if (!document.is_object() || document.size() != 1U ||
         !document.contains("records") || !document["records"].is_array() ||
@@ -169,10 +172,10 @@ Expected<RecordMetadata> append_payload(const ManifestRecord& record,
   if (!size) {
     return unexpected(size.error());
   }
-  if (*size > std::numeric_limits<std::uint64_t>::max() - offset) {
-    return unexpected(make_error(StoreErrorCode::arithmetic_overflow,
-                                 "payload offsets overflow the store format",
-                                 record.payload_path, record.record_id));
+  auto next_offset = detail::checked_add_bytes(
+      offset, *size, record.record_id, record.payload_path);
+  if (!next_offset) {
+    return unexpected(next_offset.error());
   }
   std::ifstream source(record.payload_path, std::ios::binary);
   if (!source) {
@@ -314,7 +317,12 @@ Expected<BuildResult> build_store(
       return unexpected(appended.error());
     }
     metadata.push_back(*appended);
-    offset += appended->byte_length;
+    auto next_offset = detail::checked_add_bytes(
+        offset, appended->byte_length, appended->record_id, data_path);
+    if (!next_offset) {
+      return unexpected(next_offset.error());
+    }
+    offset = *next_offset;
   }
   data_stream.flush();
   if (!data_stream) {

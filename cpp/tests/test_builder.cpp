@@ -2,12 +2,14 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "prism/storage/builder.hpp"
+#include "prism/storage/detail/checked_arithmetic.hpp"
 #include "prism/storage/store_format.hpp"
 
 namespace {
@@ -136,4 +138,39 @@ TEST_CASE("builder preserves occupied destinations and temporary paths") {
   REQUIRE_FALSE(temporary);
   CHECK(temporary.error().code == prism::storage::StoreErrorCode::destination_exists);
   CHECK(std::filesystem::exists(root / "other.tmp" / "keep.txt"));
+}
+
+TEST_CASE("builder offset accumulation rejects uint64 overflow") {
+  auto result = prism::storage::detail::checked_add_bytes(
+      std::numeric_limits<std::uint64_t>::max(), 1, 7);
+  REQUIRE_FALSE(result);
+  CHECK(result.error().code ==
+        prism::storage::StoreErrorCode::arithmetic_overflow);
+  CHECK(result.error().record_id == 7);
+}
+
+TEST_CASE("builder rejects unreadable payloads and trailing manifest content") {
+  const auto root = fresh_directory("prism_builder_unreadable");
+  std::filesystem::create_directories(root);
+  const auto payload = root / "payload.bin";
+  write_text(payload, "payload");
+  write_text(root / "manifest.json",
+             R"({"records":[{"record_id":1,"payload_path":"payload.bin"}]})");
+  std::filesystem::permissions(payload, std::filesystem::perms::none);
+  auto unreadable = prism::storage::build_store(root / "manifest.json",
+                                                 root / "store");
+  std::filesystem::permissions(payload, std::filesystem::perms::owner_read |
+                                            std::filesystem::perms::owner_write);
+  REQUIRE_FALSE(unreadable);
+  CHECK(unreadable.error().code == prism::storage::StoreErrorCode::io_error);
+  CHECK_FALSE(std::filesystem::exists(root / "store"));
+  CHECK_FALSE(std::filesystem::exists(root / "store.tmp"));
+
+  write_text(root / "trailing.json",
+             R"({"records":[{"record_id":1,"payload_path":"payload.bin"}]} {})");
+  auto trailing = prism::storage::build_store(root / "trailing.json",
+                                               root / "trailing_store");
+  REQUIRE_FALSE(trailing);
+  CHECK(trailing.error().code ==
+        prism::storage::StoreErrorCode::malformed_manifest);
 }

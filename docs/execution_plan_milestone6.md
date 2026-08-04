@@ -1,6 +1,6 @@
 # Milestone 6 Native Storage Engine Execution Plan
 
-**Status:** In progress
+**Status:** Complete
 
 ## Scope
 

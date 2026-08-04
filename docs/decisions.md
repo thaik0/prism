@@ -590,3 +590,37 @@ search is authorized by this decision. Real storage remains deferred, so the
 evidence concerns deterministic simulated costs rather than measured latency.
 Positive oracle regret preserves a future research question, but not a claim of
 demonstrated dynamic predictive tiering.
+
+---
+
+## D026 — Policy-agnostic native immutable two-tier engine
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 6 uses a standalone C++17 engine with one deterministic FlatBuffers
+version-1 `PRSM` index, zlib CRC32 per immutable payload, a read-only `pread`
+slow tier, and explicitly owned in-memory fast buffers. Placement callers supply
+complete exact target sets. The engine performs no ranking, admission, or victim
+selection.
+
+Target transitions verify and retain all incoming payloads and construct the
+complete next state before one no-throw swap. Runtime failures use pinned
+`tl::expected` structured results. Build, inspection, logical counters, snapshots,
+and replay artifacts are deterministic; timing is excluded from canonical output.
+
+**Rationale**
+
+This isolates systems correctness from the unsupported dynamic-prediction claim
+and lets future deterministic policies execute against real file bytes and owned
+memory without policy behavior leaking into storage. FlatBuffers, zlib,
+nlohmann/json, CLI11, tl::expected, and Catch2 avoid custom serialization,
+checksum, parser, result, CLI, and test infrastructure.
+
+**Consequences and limitations**
+
+The directory rename is atomically visible on one supported filesystem but not a
+crash-durable transaction. macOS and Linux are supported; Windows, writes,
+concurrency, asynchronous I/O, memory mapping, direct I/O, Python bindings,
+policies, and wall-clock performance claims are deferred.

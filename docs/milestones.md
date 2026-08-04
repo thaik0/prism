@@ -2,9 +2,9 @@
 
 ## Current status
 
-**Current milestone:** Milestone 5.5 — Predictive Actionability Diagnosis
+**Current milestone:** Milestone 6 — Native C++ Two-Tier Storage Engine
 
-**Project stage:** Milestone 5.5 implemented and verified; thesis reframed
+**Project stage:** Milestone 6 implemented and verified; policy integration deferred
 
 A milestone is complete only when:
 
@@ -295,7 +295,7 @@ does not begin a predictor search or real-storage implementation.
 
 # Milestone 6 — C++ RAM/SSD Tiering Engine
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -309,9 +309,10 @@ Build a real two-tier record engine using process RAM and a simple file-backed l
 - metadata index;
 - real file reads;
 - promotion and eviction;
-- baseline policies;
-- deterministic controller interface;
-- timing and instrumentation;
+- policy-agnostic deterministic exact-target interface;
+- deterministic logical instrumentation;
+- structured corruption and I/O errors;
+- deterministic inspection and JSONL replay;
 - C++ unit tests;
 - CMake build.
 
@@ -330,9 +331,16 @@ Build a real two-tier record engine using process RAM and a simple file-backed l
 - Capacity invariants hold for variable-sized records.
 - Eviction never loses authoritative data.
 - Reads return correct bytes.
-- Real latency and movement metrics are captured.
-- Baseline policy behavior is tested.
-- The engine can replay a representative trace independently of Python ML.
+- Logical read and movement metrics are captured deterministically.
+- Failed target transitions preserve exact prior residency.
+- Every slow-tier and migration read verifies CRC32.
+- Builder, inspection, and replay outputs are deterministic.
+- The engine replays a representative trace independently of Python ML.
+- Debug, AddressSanitizer, UndefinedBehaviorSanitizer, and Python regressions pass.
+
+Milestone 6 deliberately contains no placement policy. The attached milestone
+brief superseded the older baseline-policy wording: policies supply exact targets
+in a later integration milestone. No wall-clock performance claim is made.
 
 ---
 

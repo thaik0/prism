@@ -39,6 +39,12 @@ struct LoadedStoreIndex {
 [[nodiscard]] Expected<LoadedStoreIndex> load_store_index(
     const std::filesystem::path& store_directory);
 
+[[nodiscard]] Expected<bool> validate_store_metadata(
+    const std::vector<RecordMetadata>& records,
+    std::uint64_t declared_data_length,
+    std::uint64_t actual_data_length,
+    const std::filesystem::path& context_path = {});
+
 [[nodiscard]] Expected<std::vector<std::byte>> read_record_payload(
     const std::filesystem::path& data_path,
     const RecordMetadata& metadata,

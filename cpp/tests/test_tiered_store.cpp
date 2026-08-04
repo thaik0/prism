@@ -283,6 +283,26 @@ TEST_CASE("failed staged target reads discard staging and do not partially evict
   CHECK(stats.promotion_source_reads == 2);
 }
 
+TEST_CASE("truncated staged target read preserves exact prior residency") {
+  const auto fixture = build_fixture("prism_engine_target_truncated");
+  auto store = prism::storage::TieredStore::open(fixture.directory, 40);
+  REQUIRE(store);
+  REQUIRE((*store)->promote(1));
+  const auto before = (*store)->residency_snapshot();
+  const auto committed_before = (*store)->stats().committed_promotions;
+  std::filesystem::resize_file(fixture.index.data_path,
+                               record(fixture, 3).byte_offset + 1);
+
+  auto result = (*store)->apply_target_set({2, 3});
+  REQUIRE_FALSE(result);
+  CHECK(result.error().code == prism::storage::StoreErrorCode::truncated_read);
+  CHECK((*store)->residency_snapshot() == before);
+  const auto stats = (*store)->stats();
+  CHECK(stats.committed_promotions == committed_before);
+  CHECK(stats.committed_evictions == 0);
+  CHECK(stats.aborted_staged_bytes == record(fixture, 2).byte_length);
+}
+
 TEST_CASE("logical counters distinguish client, migration, movement, and failures") {
   const auto fixture = build_fixture("prism_engine_stats");
   auto store = prism::storage::TieredStore::open(fixture.directory, 40);

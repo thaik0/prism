@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -157,6 +158,13 @@ TEST_CASE("loader rejects missing files and exact data truncation or append") {
   REQUIRE_FALSE(index);
   CHECK(index.error().code == prism::storage::StoreErrorCode::index_corrupt);
 
+  const auto missing_data = built_store("prism_format_missing_data");
+  std::filesystem::remove(missing_data / prism::storage::kStoreDataFilename);
+  auto data_missing = prism::storage::load_store_index(missing_data);
+  REQUIRE_FALSE(data_missing);
+  CHECK(data_missing.error().code ==
+        prism::storage::StoreErrorCode::data_file_mismatch);
+
   const auto truncated = built_store("prism_format_truncated_data");
   auto data = read_bytes(truncated / prism::storage::kStoreDataFilename);
   data.pop_back();
@@ -172,4 +180,17 @@ TEST_CASE("loader rejects missing files and exact data truncation or append") {
   auto long_data = prism::storage::load_store_index(appended);
   REQUIRE_FALSE(long_data);
   CHECK(long_data.error().code == prism::storage::StoreErrorCode::data_file_mismatch);
+}
+
+TEST_CASE("metadata validation rejects offset arithmetic overflow") {
+  const std::uint64_t maximum = std::numeric_limits<std::uint64_t>::max();
+  const std::vector<prism::storage::RecordMetadata> records{
+      {1, 0, maximum, 0}, {2, maximum, 1, 0}};
+  auto result = prism::storage::validate_store_metadata(
+      records, maximum, maximum, "synthetic.index");
+  REQUIRE_FALSE(result);
+  CHECK(result.error().code ==
+        prism::storage::StoreErrorCode::arithmetic_overflow);
+  CHECK(result.error().record_id == 2);
+  CHECK(result.error().byte_offset == maximum);
 }
