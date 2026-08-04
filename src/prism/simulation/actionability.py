@@ -404,7 +404,7 @@ def _record_report(
             } if total else None,
             "null_share_reason": None if total else "total_projected_demand_is_zero",
         })
-        ranks = rankdata(-forecast[position], method="average")
+        ranks = average_ranks(forecast[position])
         candidates = _diagnostic_candidate_set(
             forecast[position], record_ids, record_sizes, config
         )
@@ -434,6 +434,15 @@ def _record_report(
             "mean_candidate_jaccard": _mean_optional(row["top_capacity_candidate_jaccard"] for row in rank_rows),
         },
     }
+
+
+def average_ranks(values: Sequence[float]) -> np.ndarray:
+    """Rank descending values with deterministic average ranks for ties."""
+
+    array = np.asarray(values, dtype=np.float64)
+    if array.ndim != 1 or np.any(~np.isfinite(array)):
+        raise ValueError("rank values must be a finite vector")
+    return np.asarray(rankdata(-array, method="average"), dtype=np.float64)
 
 
 def _diagnostic_candidate_set(
