@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from prism.experiments.actionability import (
     CommonWindowProtocol,
@@ -14,6 +15,7 @@ from prism.experiments.materialize import resolve_actionability_workload_config
 from prism.predictor.features import PredictorDataset, WindowContext
 from prism.structure import build_demand_matrix
 from prism.workload import WorkloadConfig, generate_workload, persist_workload
+from prism.workload.config import WorkloadConfigError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +58,14 @@ def test_regime_materialization_changes_only_frozen_fields_and_seed() -> None:
         assert changed == expected
 
 
+@pytest.mark.parametrize("value", [-1, True, 1.5, "2"])
+def test_cooldown_rejects_invalid_and_boolean_values(make_config, value) -> None:
+    raw = make_config().to_dict()
+    raw["post_burst_cooldown_windows"] = value
+    with pytest.raises(WorkloadConfigError, match="post_burst_cooldown_windows"):
+        WorkloadConfig.from_dict(raw)
+
+
 def test_cooldown_exact_eligibility_simultaneous_sets_and_legacy_bytes(
     tmp_path, make_config
 ) -> None:
@@ -96,6 +106,23 @@ def test_cooldown_exact_eligibility_simultaneous_sets_and_legacy_bytes(
         assert (tmp_path / "legacy" / filename).read_bytes() == (
             tmp_path / "explicit" / filename
         ).read_bytes()
+
+
+def test_milestone55_persistence_includes_canonical_zero_cooldown_metadata(
+    tmp_path, make_config
+) -> None:
+    import json
+
+    result = generate_workload(make_config())
+    persist_workload(
+        result,
+        tmp_path / "canonical",
+        include_cooldown_metadata=True,
+    )
+    config = json.loads((tmp_path / "canonical/config.json").read_text())
+    summary = json.loads((tmp_path / "canonical/summary.json").read_text())
+    assert config["post_burst_cooldown_windows"] == 0
+    assert summary["post_burst_cooldown_windows"] == 0
 
 
 def test_common_windows_and_cumulative_targets_are_exact() -> None:

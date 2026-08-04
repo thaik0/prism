@@ -155,7 +155,11 @@ def _execute_actionability_run(
     _write_json(run_dir / "run_status.json", entry)
     workload_result = generate_workload(workload_config)
     workload_dir = run_dir / "workload"
-    persist_workload(workload_result, workload_dir)
+    persist_workload(
+        workload_result,
+        workload_dir,
+        include_cooldown_metadata=True,
+    )
     workload_validation = validate_workload_run(workload_dir)
     write_validation_report(workload_validation, workload_dir / "workload_validation.json")
     sparsity = regime_sparsity_diagnostics(
@@ -163,6 +167,10 @@ def _execute_actionability_run(
         workload_config.num_windows,
         workload_config.num_working_sets,
         workload_validation.report,
+        sum(
+            trial.spontaneous_component_succeeded
+            for trial in workload_result.hidden_ground_truth.activation_trials
+        ),
     )
 
     simulation_config = resolve_actionability_simulation_config(

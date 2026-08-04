@@ -46,12 +46,11 @@ def aggregate_actionability_root(
     engineering_complete = len(completed) == 27 and not failed
     candidate_complete = all(row["seed_count"] == 3 for row in cell_gates)
     passing_cells = [row["cell"] for row in cell_gates if row["passed"]]
-    if not engineering_complete or not candidate_complete or not separation["meaningful_aggregate_separation"]:
-        thesis_status = "insufficient_evidence"
-    elif passing_cells:
-        thesis_status = "actionable_predictive_tiering_demonstrated"
-    else:
-        thesis_status = "stable_cost_aware_tiering_reframe"
+    thesis_status = decide_thesis_status(
+        cell_gates,
+        engineering_complete=engineering_complete and candidate_complete,
+        regime_separation_sufficient=separation["meaningful_aggregate_separation"],
+    )
     thesis = {
         "schema_version": 1,
         "source_manifest_sha256": manifest.sha256,
@@ -76,6 +75,7 @@ def aggregate_actionability_root(
         "regime_separation": separation,
         "horizon_predictor_metrics": _horizon_metrics(runs),
         "policy_metrics_by_cell": _policy_metrics(by_cell),
+        "paired_policy_comparisons": _paired_policy_comparisons(by_cell),
         "factor_movement": [
             _select(row, "experiment_id", "factor_movement") for row in runs
         ],
@@ -84,6 +84,12 @@ def aggregate_actionability_root(
         ],
         "controller_rejection_reasons": [
             _select(row, "experiment_id", "controller_summary") for row in runs
+        ],
+        "component_shares": [
+            _select(row, "experiment_id", "component_shares") for row in runs
+        ],
+        "selection_margins": [
+            _select(row, "experiment_id", "selection_margins") for row in runs
         ],
         "oracle_target_agreement": [
             _select(row, "experiment_id", "oracle_agreement") for row in runs
@@ -111,6 +117,20 @@ def aggregate_actionability_root(
     return report, thesis
 
 
+def decide_thesis_status(
+    cell_gates: Sequence[Mapping[str, Any]],
+    *,
+    engineering_complete: bool,
+    regime_separation_sufficient: bool,
+) -> str:
+    """Apply the precommitted final decision rule without reading experiment files."""
+    if not engineering_complete or not regime_separation_sufficient:
+        return "insufficient_evidence"
+    if any(bool(row["passed"]) for row in cell_gates):
+        return "actionable_predictive_tiering_demonstrated"
+    return "stable_cost_aware_tiering_reframe"
+
+
 def _run_row(root: Path, entry: Mapping[str, Any]) -> dict[str, Any]:
     run_dir = root / "runs" / str(entry["experiment_id"])
     simulation = _load_json(run_dir / "simulation" / "evaluation_report.json")
@@ -128,6 +148,8 @@ def _run_row(root: Path, entry: Mapping[str, Any]) -> dict[str, Any]:
         "horizon": entry["horizon"],
         "seed": entry["seed"],
         "predictor_scientific_gates": predictor["scientific_gates"],
+        "activation_test_metrics": predictor["activation"]["test"],
+        "intensity_test_metrics": predictor["intensity"]["test"],
         "projection_coefficients": simulation["projection"]["coefficients"],
         "policy_metrics": simulation["policy_metrics"],
         "predictive_frozen_difference_fraction": disagreement["windows_differing_fraction"],
@@ -140,7 +162,14 @@ def _run_row(root: Path, entry: Mapping[str, Any]) -> dict[str, Any]:
         "frozen_transition_coverage": transition["validation_final_frozen"],
         "factor_movement": actionability["factor_forecast_movement"],
         "record_rank_turnover": actionability["record_projection_movement"]["summary"],
+        "record_forecast_metrics": actionability["record_projection_movement"]["cumulative_record_forecast_metrics"],
         "controller_summary": actionability["controller_actionability"]["test_summary"],
+        "component_shares": _mean_component_shares(
+            actionability["record_projection_movement"]["component_shares_by_window"]
+        ),
+        "selection_margins": _mean_selection_margins(
+            actionability["controller_actionability"]["per_window"]
+        ),
         "oracle_agreement": actionability["matched_horizon_oracle_agreement"]["summary"],
         "promotion_repayment": actionability["promotion_repayment"],
     }
@@ -341,8 +370,11 @@ def _horizon_metrics(runs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             "horizon": row["horizon"],
             "seed": row["seed"],
             "predictor_scientific_gates": row["predictor_scientific_gates"],
+            "activation_brier": row["activation_test_metrics"]["all_examples"]["context_plus_state_logistic"]["pooled"]["brier_score"],
+            "conditional_intensity_rmse": row["intensity_test_metrics"]["context_plus_state_ridge"]["pooled"]["rmse"],
             "projection_coefficients": row["projection_coefficients"],
             "factor_test_metrics": row["factor_movement"]["test"],
+            "record_test_metrics": row["record_forecast_metrics"]["test"],
         }
         for row in runs
     ]
@@ -368,6 +400,58 @@ def _policy_metrics(by_cell: Mapping[tuple[str, int], Sequence[Mapping[str, Any]
     return result
 
 
+def _paired_policy_comparisons(
+    by_cell: Mapping[tuple[str, int], Sequence[Mapping[str, Any]]]
+) -> list[dict[str, Any]]:
+    rows = []
+    for (regime, horizon), cell_rows in by_cell.items():
+        for comparator, key in (
+            ("validation_final_frozen", "frozen_cost"),
+            ("recent_state_only", "recent_state_cost"),
+        ):
+            differences = [float(row["predictive_cost"] - row[key]) for row in cell_rows]
+            rows.append({
+                "regime": regime,
+                "horizon": horizon,
+                "comparator": comparator,
+                "seed_differences_predictive_minus_comparator": [
+                    {"seed": row["seed"], "difference": difference}
+                    for row, difference in zip(cell_rows, differences, strict=True)
+                ],
+                "mean_difference": _mean(differences),
+                "predictive_win_count": sum(value < 0 for value in differences),
+            })
+    return rows
+
+
+def _mean_component_shares(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    names = ("continuation", "activation_intensity", "factor_intercept", "residual_baseline")
+    return {
+        name: _mean([
+            row["shares"][name]
+            for row in rows if row["shares"] is not None
+        ])
+        for name in names
+    }
+
+
+def _mean_selection_margins(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    test = [row["selection_margins"] for row in rows if row["period"] == "test"]
+    names = (
+        "minimum_selected_net_benefit",
+        "minimum_selected_benefit_density",
+        "maximum_rejected_positive_net_benefit",
+        "maximum_rejected_positive_benefit_density",
+        "selected_versus_rejected_density_margin",
+        "smallest_positive_nonresident_net_benefit",
+        "closest_nonresident_distance_to_zero",
+    )
+    return {
+        name: _mean([row[name] for row in test if row[name] is not None])
+        for name in names
+    }
+
+
 def _render_tables(report: Mapping[str, Any], thesis: Mapping[str, Any]) -> str:
     lines = [
         "# Milestone 5.5 Aggregate Tables", "",
@@ -379,10 +463,17 @@ def _render_tables(report: Mapping[str, Any], thesis: Mapping[str, Any]) -> str:
     ]
     for row in report["regime_diagnostics"]:
         lines.append(f"| {row['regime']} | {row['seed']} | {_fmt(row['burst_starts_per_100_windows'])} | {_fmt(row['fraction_windows_with_active_burst'])} | {_fmt(row['fraction_windows_with_at_least_two_active'])} | {_fmt(row['pooled_dormant_intervals']['median'])} |")
+    lines.extend(["", "## Predictor and projection metrics by horizon", "", "| Experiment | Activation Brier | Conditional-intensity RMSE | Factor MAE | Factor RMSE | Record MAE | Record RMSE |", "|---|---:|---:|---:|---:|---:|---:|"])
+    for row in report["horizon_predictor_metrics"]:
+        lines.append(f"| {row['experiment_id']} | {_fmt(row['activation_brier'])} | {_fmt(row['conditional_intensity_rmse'])} | {_fmt(row['factor_test_metrics']['mae'])} | {_fmt(row['factor_test_metrics']['rmse'])} | {_fmt(row['record_test_metrics']['mae'])} | {_fmt(row['record_test_metrics']['rmse'])} |")
     lines.extend(["", "## Policy cost by cell", "", "| Regime | H | Policy | Access | Promotion | Combined | Hit rate |", "|---|---:|---|---:|---:|---:|---:|"])
     for cell in report["policy_metrics_by_cell"]:
         for policy, values in cell["policies"].items():
             lines.append(f"| {cell['regime']} | {cell['horizon']} | {policy} | {_fmt(values['mean_access_cost'])} | {_fmt(values['mean_promotion_cost'])} | {_fmt(values['mean_combined_cost'])} | {_fmt(values['mean_hit_rate'])} |")
+    lines.extend(["", "## Predictive versus frozen and recent-state-only", "", "Differences are Predictive Greedy (Prism) minus comparator; negative favors Predictive.", "", "| Regime | H | Comparator | Seed differences | Mean | Predictive wins |", "|---|---:|---|---|---:|---:|"])
+    for row in report["paired_policy_comparisons"]:
+        differences = ", ".join(f"{item['seed']}:{_fmt(item['difference'])}" for item in row["seed_differences_predictive_minus_comparator"])
+        lines.append(f"| {row['regime']} | {row['horizon']} | {row['comparator']} | {differences} | {_fmt(row['mean_difference'])} | {row['predictive_win_count']} |")
     lines.extend(["", "## Predictive actionability diagnostics", "", "| Experiment | Rank change | Movement-cost rejects | Capacity rejects | Oracle Jaccard | Pre-demand | Repaid fraction | Net value |", "|---|---:|---:|---:|---:|---:|---:|---:|"])
     rank = {row["experiment_id"]: row["record_rank_turnover"] for row in report["record_rank_turnover"]}
     controller = {row["experiment_id"]: row["controller_summary"] for row in report["controller_rejection_reasons"]}

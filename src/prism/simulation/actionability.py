@@ -253,9 +253,11 @@ def _actionability_diagnostics(
         activation_record,
         intercept_record,
         residual_record,
+        projection.cumulative_future_record_demand[windows],
         record_ids,
         record_sizes,
         config,
+        protocol,
     )
 
     controller_report, controller_arrays, targets_by_window = _controller_report(
@@ -380,9 +382,11 @@ def _record_report(
     activation: np.ndarray,
     intercept: np.ndarray,
     residual: np.ndarray,
+    actual: np.ndarray,
     record_ids: np.ndarray,
     record_sizes: np.ndarray,
     config: SimulationConfig,
+    protocol: CommonWindowProtocol,
 ) -> dict[str, Any]:
     rank_rows = []
     previous_ranks = None
@@ -424,9 +428,22 @@ def _record_report(
             })
         previous_ranks = ranks
         previous_candidates = candidates
+    forecast_metrics = {}
+    for period, start, end in (
+        ("validation", protocol.validation_start, protocol.validation_evaluation_end),
+        ("test", protocol.test_start, protocol.test_evaluation_end),
+    ):
+        mask = (windows >= start) & (windows < end)
+        error = forecast[mask] - actual[mask]
+        forecast_metrics[period] = {
+            "target_window_count": int(np.sum(mask)),
+            "mae": float(np.mean(np.abs(error))),
+            "rmse": float(np.sqrt(np.mean(error * error))),
+        }
     return {
         "component_shares_by_window": component_rows,
         "rank_turnover_by_consecutive_window": rank_rows,
+        "cumulative_record_forecast_metrics": forecast_metrics,
         "top_capacity_candidate_definition": "gross-benefit-density order, ignoring residency and promotion cost, greedily filled by bytes",
         "summary": {
             "mean_spearman": _mean_optional(row["spearman_rank_correlation"] for row in rank_rows),

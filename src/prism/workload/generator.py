@@ -159,7 +159,8 @@ def generate_workload(config: WorkloadConfig) -> WorkloadResult:
                     previous_precursor_scores[working_set_id],
                 )
             )
-            activated = rng.random() < activation_probability
+            activation_draw = rng.random()
+            activated = activation_draw < activation_probability
             created_burst_id: int | None = None
             if activated:
                 duration = rng.randint(
@@ -201,6 +202,11 @@ def generate_workload(config: WorkloadConfig) -> WorkloadResult:
                     activation_probability=activation_probability,
                     activated=activated,
                     created_burst_id=created_burst_id,
+                    spontaneous_component_succeeded=(
+                        activated
+                        and activation_draw
+                        < config.spontaneous_activation_probability
+                    ),
                 )
             )
 
@@ -343,7 +349,12 @@ def generate_workload(config: WorkloadConfig) -> WorkloadResult:
     )
 
 
-def persist_workload(result: WorkloadResult, output_dir: str | Path) -> None:
+def persist_workload(
+    result: WorkloadResult,
+    output_dir: str | Path,
+    *,
+    include_cooldown_metadata: bool = False,
+) -> None:
     """Write exactly four deterministic artifacts to an empty destination."""
 
     if not isinstance(result, WorkloadResult):
@@ -362,7 +373,12 @@ def persist_workload(result: WorkloadResult, output_dir: str | Path) -> None:
     else:
         destination.mkdir(parents=True)
 
-    _write_json(destination / "config.json", result.config.to_dict())
+    _write_json(
+        destination / "config.json",
+        result.config.to_resolved_dict()
+        if include_cooldown_metadata
+        else result.config.to_dict(),
+    )
     events_text = "".join(
         json.dumps(
             event.to_dict(),
@@ -380,7 +396,12 @@ def persist_workload(result: WorkloadResult, output_dir: str | Path) -> None:
         destination / "hidden_ground_truth.json",
         result.hidden_ground_truth.to_dict(),
     )
-    _write_json(destination / "summary.json", result.summary.to_dict())
+    summary = result.summary.to_dict()
+    if include_cooldown_metadata:
+        summary["post_burst_cooldown_windows"] = (
+            result.config.post_burst_cooldown_windows
+        )
+    _write_json(destination / "summary.json", summary)
 
 
 def _generate_memberships(

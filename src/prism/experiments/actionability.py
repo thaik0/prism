@@ -372,6 +372,7 @@ def regime_sparsity_diagnostics(
     num_windows: int,
     num_working_sets: int,
     workload_validation_report: Mapping[str, Any],
+    spontaneous_start_count: int | None = None,
 ) -> dict[str, Any]:
     """Summarize realized burst sparsity without affecting generation."""
 
@@ -406,10 +407,6 @@ def regime_sparsity_diagnostics(
     trials = [dict(row) for row in hidden.get("activation_trials", [])]
     precursor_trials = [row for row in trials if float(row["previous_window_precursor_score"]) > 0]
     precursor_successes = [row for row in precursor_trials if row["activated"]]
-    spontaneous = [
-        row for row in trials
-        if row["activated"] and float(row["contextual_probability"]) == 0.0
-    ]
     demonstration = workload_validation_report["demonstration_checks"]
     return {
         "total_burst_starts": len(bursts),
@@ -432,8 +429,8 @@ def regime_sparsity_diagnostics(
             "no_clear_precursor_then_burst": demonstration["no_clear_precursor_followed_by_burst"]["count"],
         },
         "precursor_to_burst_rate": len(precursor_successes) / len(precursor_trials) if precursor_trials else None,
-        "spontaneous_start_count": len(spontaneous),
-        "spontaneous_start_definition": "successful start with zero contextual activation probability",
+        "spontaneous_start_count": spontaneous_start_count,
+        "spontaneous_start_definition": "successful activation whose unchanged uniform activation draw is below the spontaneous-probability component; retained only in memory to preserve legacy artifact bytes",
     }
 
 

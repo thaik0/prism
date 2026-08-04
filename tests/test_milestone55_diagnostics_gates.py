@@ -4,9 +4,10 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from prism.experiments.actionability import CommonWindowProtocol
-from prism.experiments.actionability_aggregate import _cell_gates
+from prism.experiments.actionability_aggregate import _cell_gates, decide_thesis_status
 from prism.experiments.runner import run_experiments
 from prism.simulation import SimulationConfig, run_policy_replay
 from prism.simulation.actionability import (
@@ -239,6 +240,41 @@ def test_thesis_gate_requires_both_comparators_nonmigration_and_positive_net() -
     assert not result["gate_c_non_migration_value"]["passed"]
     assert not result["gate_d_useful_promotions"]["passed"]
     assert not result["passed"]
+
+
+@pytest.mark.parametrize("passing_count", [1, 2, 4])
+def test_final_decision_accepts_one_or_more_passing_candidate_cells(
+    passing_count: int,
+) -> None:
+    cells = [{"passed": index < passing_count} for index in range(4)]
+    assert decide_thesis_status(
+        cells,
+        engineering_complete=True,
+        regime_separation_sufficient=True,
+    ) == "actionable_predictive_tiering_demonstrated"
+
+
+def test_final_decision_reframes_when_every_candidate_cell_fails() -> None:
+    assert decide_thesis_status(
+        [{"passed": False} for _ in range(4)],
+        engineering_complete=True,
+        regime_separation_sufficient=True,
+    ) == "stable_cost_aware_tiering_reframe"
+
+
+@pytest.mark.parametrize(
+    ("engineering_complete", "regime_separation_sufficient"),
+    [(False, True), (True, False), (False, False)],
+)
+def test_final_decision_reports_insufficient_evidence_for_incomplete_foundations(
+    engineering_complete: bool,
+    regime_separation_sufficient: bool,
+) -> None:
+    assert decide_thesis_status(
+        [{"passed": True}],
+        engineering_complete=engineering_complete,
+        regime_separation_sufficient=regime_separation_sufficient,
+    ) == "insufficient_evidence"
 
 
 def test_actionability_runner_has_27_statuses_and_hash_verified_resume(

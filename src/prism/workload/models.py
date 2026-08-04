@@ -101,6 +101,7 @@ class ActivationTrial:
     activation_probability: float
     activated: bool
     created_burst_id: int | None
+    spontaneous_component_succeeded: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {

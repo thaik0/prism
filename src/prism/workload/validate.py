@@ -277,10 +277,7 @@ def _validate_structure(
             "access_source_counts_by_window",
         },
     )
-    _require_exact_keys(
-        "summary.json",
-        summary,
-        {
+    summary_fields = {
             "schema_version",
             "seed",
             "num_windows",
@@ -293,8 +290,10 @@ def _validate_structure(
             "noise_access_count",
             "working_set_access_count",
             "records_in_multiple_working_sets",
-        },
-    )
+    }
+    if "post_burst_cooldown_windows" in summary:
+        summary_fields.add("post_burst_cooldown_windows")
+    _require_exact_keys("summary.json", summary, summary_fields)
     if _integer("hidden.schema_version", hidden["schema_version"]) != 1:
         raise WorkloadValidationError("hidden.schema_version must equal 1")
     if _integer("summary.schema_version", summary["schema_version"]) != 1:
@@ -303,6 +302,14 @@ def _validate_structure(
         raise WorkloadValidationError("config seed and hidden seed do not agree")
     if _integer("summary.seed", summary["seed"]) != config.seed:
         raise WorkloadValidationError("config seed and summary seed do not agree")
+    if "post_burst_cooldown_windows" in summary and _integer(
+        "summary.post_burst_cooldown_windows",
+        summary["post_burst_cooldown_windows"],
+        minimum=0,
+    ) != config.post_burst_cooldown_windows:
+        raise WorkloadValidationError(
+            "summary cooldown does not agree with canonical configuration"
+        )
 
     record_sizes = _list("hidden.record_sizes_bytes", hidden["record_sizes_bytes"])
     if len(record_sizes) != config.num_records:
