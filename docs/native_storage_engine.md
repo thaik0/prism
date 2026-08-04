@@ -221,7 +221,9 @@ No wall-clock timing is collected or placed in canonical artifacts. Ordinary
 file reads are influenced by the operating-system page cache, and this milestone
 makes no RAM/SSD latency or performance-superiority claim.
 
-This milestone has no Python binding, predictor invocation, policy, mutable
-record, dirty state, writeback, concurrency, asynchronous I/O, memory mapping,
-direct I/O, compression, encryption, network storage, database, GPU behavior,
-LLM integration, or crash-recovery mechanism.
+Milestone 6 itself has no Python binding, predictor invocation, or policy. The
+subsequent synchronous binding and parity layer is documented in
+`docs/python_cpp_integration.md`; it does not change this engine's semantics.
+The engine still has no mutable record, dirty state, writeback, concurrency,
+asynchronous I/O, memory mapping, direct I/O, compression, encryption, network
+storage, database, GPU behavior, LLM integration, or crash-recovery mechanism.

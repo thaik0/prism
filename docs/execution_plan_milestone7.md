@@ -1,5 +1,7 @@
 # Milestone 7 Execution Plan
 
+**Status:** Complete
+
 ## Scope
 
 Milestone 7 integrates the Milestone 6 storage engine with Python and proves
@@ -99,3 +101,22 @@ timing, or any Milestone 8 capability.
   committed.
 - No scientific gate is reinterpreted: this milestone certifies execution
   parity, not new predictive actionability or measured performance.
+
+## Completion evidence
+
+- Checkpoint 1: `d89422e Add pybind11 storage engine bindings`.
+- Checkpoint 2: `850e35c Add deterministic native store integration`.
+- Checkpoint 3: `655b695 Add simulator and native execution parity`.
+- Python regression suite: 254 passed.
+- Native Debug, AddressSanitizer, and UndefinedBehaviorSanitizer suites: 29/29
+  passed in each configuration.
+- Forced fixture: all four policies, zero mismatches, byte-identical repeated
+  roots.
+- Accepted representative: seed 1729, 130,349 compared validation/test
+  operations, zero mismatches/invalidations/capacity violations, byte-identical
+  repeated roots.
+- Editable package import and an isolated wheel build/install/native-read smoke
+  test passed.
+
+Detailed contracts, commands, results, and limitations are in
+`docs/python_cpp_integration.md`.

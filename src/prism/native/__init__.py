@@ -22,6 +22,11 @@ from prism.native.payloads import (
     load_workload_payloads,
     write_native_store_manifest,
 )
+from prism.native.representative import (
+    NativeParityOutputError,
+    RepresentativeParityResult,
+    run_representative_parity,
+)
 from prism.native.store import (
     BuildSummary,
     EvictionResult,
@@ -44,6 +49,7 @@ __all__ = [
     "NativeStoreArtifacts",
     "NativeStoreError",
     "NativeStoreManifest",
+    "NativeParityOutputError",
     "PAYLOAD_SCHEMA_VERSION",
     "PARITY_POLICY_ORDER",
     "ParityExecution",
@@ -51,6 +57,7 @@ __all__ = [
     "PolicyParityInputs",
     "PromotionResult",
     "ReadResult",
+    "RepresentativeParityResult",
     "RecordMetadata",
     "ResidencySnapshot",
     "StoreStats",
@@ -63,6 +70,7 @@ __all__ = [
     "load_workload_payloads",
     "run_forced_fixture",
     "run_four_policy_parity",
+    "run_representative_parity",
     "write_parity_artifacts",
     "write_native_store_manifest",
 ]

@@ -624,3 +624,36 @@ The directory rename is atomically visible on one supported filesystem but not a
 crash-durable transaction. macOS and Linux are supported; Windows, writes,
 concurrency, asynchronous I/O, memory mapping, direct I/O, Python bindings,
 policies, and wall-clock performance claims are deferred.
+
+---
+
+## D027 — Synchronous Python/native semantic parity boundary
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 7 uses one private `prism._native` pybind11 extension linked to the
+existing C++ storage target and one public `prism.native` wrapper. Python owns
+all forecasting and deterministic policy decisions. C++ owns authoritative
+bytes, residency, integrity, movement, exact targets, and logical counters.
+
+Parity uses an independent Python ledger and compares every operation result,
+error code, payload digest, tier, snapshot, capacity value, and counter. The
+first mismatch invalidates only that policy and stops further native calls for
+it. Canonical artifacts contain no timing or payload bodies.
+
+**Rationale**
+
+A synchronous, auditable boundary is the smallest complete step that can prove
+the simulator's accepted placement decisions execute with identical storage
+semantics. It isolates integration correctness before concurrency or performance
+work and preserves the Milestone 5.5 stable cost-aware thesis.
+
+**Consequences and limitations**
+
+Payloads are copied into Python, the GIL remains held, and there is no worker,
+callback, batching, background migration, or latency claim. The accepted
+representative predictive placement remains stable; forced fixtures establish
+dynamic path coverage but do not constitute new scientific actionability
+evidence.

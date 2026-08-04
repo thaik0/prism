@@ -145,6 +145,35 @@ class SimulationRun:
 
 
 @dataclass(frozen=True)
+class PolicyInputBundle:
+    """Validated model-visible inputs for deterministic policy execution."""
+
+    workload_seed: int
+    config: SimulationConfig
+    observable_events: tuple[ObservableEvent, ...]
+    observable_demand: np.ndarray
+    record_ids: tuple[int, ...]
+    record_sizes: tuple[int, ...]
+    predicted_record_demand: np.ndarray
+    prediction_available: np.ndarray
+    train_end: int
+    validation_end: int
+    evaluation_end: int
+    source_hashes: tuple[tuple[str, str], ...]
+    predictor_hashes: tuple[tuple[str, str], ...]
+
+    def __post_init__(self) -> None:
+        for name in (
+            "observable_demand",
+            "predicted_record_demand",
+            "prediction_available",
+        ):
+            value = np.array(getattr(self, name), copy=True)
+            value.setflags(write=False)
+            object.__setattr__(self, name, value)
+
+
+@dataclass(frozen=True)
 class _FrozenInputs:
     source_config: WorkloadConfig
     demand: DemandMatrix
@@ -161,6 +190,47 @@ class _FrozenInputs:
     hidden_ground_truth: dict[str, Any]
     source_hashes: dict[str, str]
     predictor_hashes: dict[str, str]
+
+
+def load_policy_inputs(
+    run_dir: str | Path,
+    predictor_run_dir: str | Path,
+    config_path: str | Path,
+    *,
+    require_scientific_gates: bool = True,
+) -> PolicyInputBundle:
+    """Validate frozen artifacts and derive accepted record-demand forecasts."""
+
+    config = SimulationConfig.from_json(config_path)
+    frozen = _load_frozen_inputs(
+        Path(run_dir),
+        Path(predictor_run_dir),
+        require_scientific_gates=require_scientific_gates,
+    )
+    config.validate_record_sizes(frozen.record_sizes.tolist())
+    projection = fit_record_demand_projection(
+        frozen.demand.X,
+        frozen.membership_matrix,
+        frozen.activation_probability,
+        frozen.conditional_intensity,
+        frozen.prediction_available,
+        frozen.train_end,
+    )
+    return PolicyInputBundle(
+        workload_seed=frozen.source_config.seed,
+        config=config,
+        observable_events=frozen.events,
+        observable_demand=frozen.demand.X,
+        record_ids=tuple(int(value) for value in frozen.demand.record_ids),
+        record_sizes=tuple(int(value) for value in frozen.record_sizes),
+        predicted_record_demand=projection.predicted_record_demand,
+        prediction_available=frozen.prediction_available,
+        train_end=frozen.train_end,
+        validation_end=frozen.validation_end,
+        evaluation_end=frozen.demand.X.shape[0],
+        source_hashes=tuple(sorted(frozen.source_hashes.items())),
+        predictor_hashes=tuple(sorted(frozen.predictor_hashes.items())),
+    )
 
 
 def run_simulated_evaluation(

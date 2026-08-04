@@ -19,11 +19,14 @@ on validation, and evaluates access plus promotion cost on identical test events
 FlatBuffers-indexed immutable store, validated file-backed slow reads, explicitly
 owned byte-constrained fast-tier buffers, atomic exact-target placement,
 structured errors/counters, full inspection, and deterministic JSONL replay.
+**Milestone 7** adds a private `pybind11` extension, deterministic workload-sized
+payloads, a public synchronous Python wrapper, and exact operation-level native
+execution parity for Training-Popularity Static, Predictive Greedy, LRU, and LFU.
 
-Milestones 1--5.5 continue to use simulated costs. Milestone 6 provides real
-filesystem reads and process-owned memory, but it collects no canonical
-wall-clock timing and makes no RAM/SSD performance-superiority claim. Python/C++
-integration and asynchronous migration remain unimplemented.
+Milestones 1--5.5 continue to use simulated costs. Milestones 6--7 provide real
+filesystem reads and process-owned memory plus verified Python/C++ semantics,
+but collect no canonical wall-clock timing and make no RAM/SSD
+performance-superiority claim. Asynchronous migration remains unimplemented.
 
 ## Requirements
 
@@ -32,7 +35,7 @@ integration and asynchronous migration remain unimplemented.
 - SciPy
 - scikit-learn
 - pytest, for development tests
-- CMake 3.24+, a C++17 compiler, and zlib, for Milestone 6
+- CMake 3.24+, a C++17 compiler, and zlib, for Milestones 6--7
 
 The Milestone 1 generator itself remains standard-library-only.
 
@@ -211,6 +214,31 @@ The first configure fetches pinned dependency releases into the ignored build
 tree. See [the native engine documentation](docs/native_storage_engine.md) for
 the format, APIs, error/counter contracts, atomicity, determinism, sanitizer
 commands, and limitations.
+
+## Run Python/native execution parity
+
+Build the private extension through the project package, then run either the
+hand-checkable forced fixture or the accepted representative frozen inputs:
+
+```bash
+python3 -m pip install -e .
+python3 -c "import prism._native; import prism.native; print('native import ok')"
+
+python3 -m prism.native.cli \
+  --fixture \
+  --output-dir /tmp/prism_m7_fixture
+
+python3 -m prism.native.cli \
+  --run-dir /tmp/prism_m7_source \
+  --predictor-run-dir /tmp/prism_m7_predictor \
+  --simulation-config configs/milestone4_simulation.json \
+  --output-dir /tmp/prism_milestone7
+```
+
+Both modes write exactly one native store and three deterministic top-level
+artifacts. See [the Python/C++ integration documentation](docs/python_cpp_integration.md)
+for ownership, payloads, errors, policy semantics, parity gates, packaging,
+commands, verified results, and limitations.
 
 See [the Milestone 1 workload documentation](docs/workload_generator.md) for the
 generation model, schemas, engineering and scientific validation rules, and

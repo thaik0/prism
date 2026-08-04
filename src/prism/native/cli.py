@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 from prism.native.fixtures import run_forced_fixture
+from prism.native.representative import run_representative_parity
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -19,6 +20,9 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run the built-in deterministic forced fixture",
     )
+    parser.add_argument("--run-dir", type=Path)
+    parser.add_argument("--predictor-run-dir", type=Path)
+    parser.add_argument("--simulation-config", type=Path)
     parser.add_argument(
         "--output-dir",
         required=True,
@@ -30,9 +34,29 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if not args.fixture:
-        raise SystemExit("--fixture is required until representative inputs are supplied")
-    result = run_forced_fixture(args.output_dir)
+    representative_values = (
+        args.run_dir,
+        args.predictor_run_dir,
+        args.simulation_config,
+    )
+    if args.fixture:
+        if any(value is not None for value in representative_values):
+            raise SystemExit(
+                "--fixture cannot be combined with representative input arguments"
+            )
+        result = run_forced_fixture(args.output_dir)
+    else:
+        if any(value is None for value in representative_values):
+            raise SystemExit(
+                "representative mode requires --run-dir, --predictor-run-dir, "
+                "and --simulation-config"
+            )
+        result = run_representative_parity(
+            args.run_dir,
+            args.predictor_run_dir,
+            args.simulation_config,
+            args.output_dir,
+        )
     gates = result.parity.report["overall_gates"]
     print(
         json.dumps(

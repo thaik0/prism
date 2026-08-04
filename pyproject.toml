@@ -19,7 +19,7 @@ dependencies = [
 [tool.scikit-build]
 minimum-version = "build-system.requires"
 cmake.source-dir = "cpp"
-build-dir = "build/{wheel_tag}"
+build-dir = "build/{wheel_tag}/{state}"
 wheel.packages = ["src/prism"]
 
 [tool.scikit-build.cmake.define]

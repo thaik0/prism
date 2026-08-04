@@ -3,20 +3,27 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from prism.native import (
+    NativeParityOutputError,
     PARITY_POLICY_ORDER,
     ParitySession,
+    PolicyParityInputs,
     TieredStore,
     build_store,
     generate_payloads,
     run_forced_fixture,
+    run_four_policy_parity,
+    run_representative_parity,
 )
+from prism.native.cli import main as native_main
 from prism.native.parity import OperationRecorder
 from prism.native.reference import ReferenceLedger
 from prism.native.store import ReadResult
-from prism.simulation import select_lfu_victim, select_lru_victim
+from prism.simulation import SimulationConfig, select_lfu_victim, select_lru_victim
+from prism.workload.models import ObservableEvent
 
 
 def _files(root: Path) -> dict[str, bytes]:
@@ -159,6 +166,73 @@ def test_first_mismatch_invalidates_only_that_policy_and_stops_native_calls(
     assert native.read_calls == 1
 
 
+def test_mismatched_policy_does_not_stop_other_independent_policies(
+    tmp_path: Path,
+) -> None:
+    payloads = generate_payloads(workload_seed=9, record_sizes=[2, 3])
+    build_store(
+        [(record.record_id, record.payload) for record in payloads],
+        tmp_path / "store",
+    )
+    demand = np.asarray([[1, 0], [1, 0], [0, 1]], dtype=np.int64)
+    events = tuple(
+        ObservableEvent(
+            event_index=index,
+            window_id=index,
+            record_id=record_id,
+            record_size_bytes=(2, 3)[record_id],
+            user_id=0,
+            session_id=index,
+            request_id=index,
+            request_type="test",
+            operation_type="read",
+        )
+        for index, record_id in enumerate((0, 0, 1))
+    )
+    inputs = PolicyParityInputs(
+        observable_events=events,
+        observable_demand=demand,
+        record_ids=(0, 1),
+        record_sizes=(2, 3),
+        predicted_record_demand=np.asarray(
+            [[0.0, 0.0], [10.0, 0.0], [0.0, 10.0]], dtype=np.float64
+        ),
+        prediction_available=np.asarray([False, True, True]),
+        config=SimulationConfig(
+            fast_capacity_bytes=3,
+            fast_read_cost=1.0,
+            slow_read_cost=10.0,
+            promotion_cost_per_byte=0.0,
+        ),
+        validation_start=1,
+        test_start=2,
+        evaluation_end=3,
+    )
+    open_count = 0
+
+    def factory(path: str | Path, capacity: int):
+        nonlocal open_count
+        open_count += 1
+        store = TieredStore.open(path, capacity)
+        return _WrongDigestStore(store) if open_count == 3 else store
+
+    execution = run_four_policy_parity(
+        inputs, payloads, tmp_path / "store", native_store_factory=factory
+    )
+
+    summaries = dict(execution.policy_summaries)
+    assert execution.report["overall_gates"]["overall_parity_passed"] is False
+    assert execution.report["overall_gates"]["invalidated_policy_count"] == 1
+    assert summaries["lru"]["invalidated"] is True
+    assert summaries["lru"]["mismatch_count"] == 1
+    for policy_id in (
+        "training_popularity_static",
+        "predictive_greedy",
+        "lfu",
+    ):
+        assert summaries[policy_id]["parity_passed"] is True
+
+
 def test_expected_errors_match_native_errors_and_preserve_state(tmp_path: Path) -> None:
     payloads = {0: b"aa", 1: b"bbbb", 2: b"123456"}
     build_store(sorted(payloads.items()), tmp_path / "store")
@@ -221,3 +295,32 @@ def test_forced_fixture_rejects_nonempty_output_root(tmp_path: Path) -> None:
         run_forced_fixture(output)
 
     assert (output / "keep.txt").read_text(encoding="utf-8") == "owned by caller"
+
+
+def test_native_cli_input_modes_are_strict(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="representative mode requires"):
+        native_main(["--output-dir", str(tmp_path / "missing")])
+    with pytest.raises(SystemExit, match="cannot be combined"):
+        native_main(
+            [
+                "--fixture",
+                "--run-dir",
+                "source",
+                "--output-dir",
+                str(tmp_path / "mixed"),
+            ]
+        )
+
+
+def test_representative_parity_rejects_nonempty_root_before_inputs(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "occupied-representative"
+    output.mkdir()
+    keep = output / "keep.txt"
+    keep.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(NativeParityOutputError, match="must be empty"):
+        run_representative_parity("missing", "missing", "missing", output)
+
+    assert keep.read_text(encoding="utf-8") == "keep"

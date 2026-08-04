@@ -16,9 +16,11 @@ from prism.simulation.projection import (
     project_record_demand,
 )
 from prism.simulation.persistence import (
+    PolicyInputBundle,
     SimulationInputError,
     SimulationOutputDirectoryError,
     SimulationRun,
+    load_policy_inputs,
     run_simulated_evaluation,
 )
 from prism.simulation.replay import (
@@ -38,6 +40,7 @@ __all__ = [
     "Migration",
     "PlacementSelection",
     "PolicyReplayResult",
+    "PolicyInputBundle",
     "ProjectionModel",
     "ProjectionResult",
     "PromotionEpisode",
@@ -53,6 +56,7 @@ __all__ = [
     "fit_record_demand_projection",
     "greedy_placement",
     "greedy_policy_target",
+    "load_policy_inputs",
     "project_record_demand",
     "record_benefits",
     "ReplayError",

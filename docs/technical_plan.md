@@ -487,19 +487,18 @@ Used for:
 
 Used only for offline analysis and visualization.
 
-## C++20
+## C++17
 
-Used for:
+Currently used for:
 
 - real storage runtime;
 - RAM ownership;
 - SSD access;
-- policies;
-- placement;
-- queues;
-- concurrency;
-- timing;
-- instrumentation.
+- explicit storage operations;
+- deterministic logical instrumentation.
+
+Milestone 7 keeps policies and placement decisions in Python. Queues,
+concurrency, and timing remain future work.
 
 ## CMake
 
@@ -507,9 +506,10 @@ Used for the C++ build.
 
 ## pybind11
 
-Used for the initial Python/C++ boundary.
-
-The boundary should use compact batched numerical data rather than per-request Python callbacks.
+Milestone 7 uses pybind11 for a private synchronous storage boundary. Python
+issues explicit per-operation storage calls; no callbacks, forecast matrices,
+or policy state cross into C++. Compact batching and asynchronous interaction
+remain deferred until a separately scoped concurrency milestone.
 
 ---
 
@@ -539,7 +539,7 @@ The storage implementation should remain deliberately simple to avoid hidden beh
 5. Rigorous experiments and error analysis
 6. Predictive actionability diagnosis and thesis reframe (Milestone 5.5)
 7. Real C++ RAM/file-backed tiering engine (Milestone 6 complete)
-8. Python/C++ integration
+8. Synchronous Python/C++ execution parity (Milestone 7 complete)
 9. Open-source LLM inference simulator integration
 10. Real heterogeneous CPU/GPU/storage deployment
 11. Other application domains, including possible market-data workloads
@@ -561,7 +561,7 @@ The first complete MVP consists of:
 - strong reactive baselines;
 - oracle and exact diagnostic modes;
 - real C++ RAM/SSD tiering;
-- asynchronous Python/C++ interaction;
+- verified synchronous Python/C++ execution parity;
 - rigorous end-to-end evaluation.
 
 The MVP does not require:
@@ -710,3 +710,25 @@ errors, logical counters, exact snapshots, corruption handling, and deterministi
 artifacts. The milestone adds no predictor/Python integration, policy ranking,
 concurrency, asynchronous I/O, mutation, or performance claim. Ordinary file I/O
 remains subject to the operating-system page cache.
+
+---
+
+# 26. Milestone 7 Python/C++ Integration Instantiation
+
+Milestone 7 links a private pybind11 module directly to the Milestone 6 storage
+library. Python supplies immutable deterministic payload bytes to the shared C++
+builder and issues explicit reads, promotions, evictions, exact-target calls,
+snapshots, and metadata/statistics queries. The public Python package translates
+one stable structured error type and returns detached immutable values.
+
+An independent Python ledger replays native storage semantics and counters. Four
+accepted policy paths—Training-Popularity Static, Predictive Greedy, LRU, and
+LFU—retain their existing Python controller and tie-breaking behavior. Every
+native operation is compared immediately, and divergence invalidates only the
+affected policy without resetting native state.
+
+The seed-1729 accepted representative run and forced fixture both pass with zero
+mismatches, invalidations, unexpected exceptions, or capacity violations; repeat
+output roots are byte-identical. This certifies synchronous integration
+semantics only. It adds no timing gate, concurrency, GIL release, background
+migration, C++ inference, native policy, or new predictive-actionability claim.

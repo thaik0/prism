@@ -181,3 +181,34 @@ def test_source_only_imports_survive_missing_extension_with_actionable_native_er
     assert missing.returncode != 0
     assert "Prism's native extension is not installed" in missing.stderr
     assert "python3 -m pip install -e ." in missing.stderr
+
+
+def test_public_open_translates_configuration_and_index_errors(tmp_path: Path) -> None:
+    store_dir = tmp_path / "store"
+    build_store([(0, b"abc")], store_dir)
+
+    with pytest.raises(NativeStoreError) as invalid_capacity:
+        TieredStore.open(store_dir, 0)
+    assert invalid_capacity.value.code == "invalid_configuration"
+    assert invalid_capacity.value.operation == "open"
+    assert invalid_capacity.value.path == str(store_dir)
+
+    index_path = store_dir / "store.index"
+    valid_index = index_path.read_bytes()
+    malformed = bytearray(valid_index)
+    malformed[-1] ^= 0x7F
+    index_path.write_bytes(malformed)
+    with pytest.raises(NativeStoreError) as corrupt:
+        TieredStore.open(store_dir, 3)
+    assert corrupt.value.code == "index_corrupt"
+    assert corrupt.value.operation == "open"
+    assert corrupt.value.path == str(index_path)
+
+    unsupported = bytearray(valid_index)
+    unsupported[24:28] = (2).to_bytes(4, "little")
+    index_path.write_bytes(unsupported)
+    with pytest.raises(NativeStoreError) as version:
+        TieredStore.open(store_dir, 3)
+    assert version.value.code == "unsupported_format_version"
+    assert version.value.operation == "open"
+    assert version.value.path == str(index_path)

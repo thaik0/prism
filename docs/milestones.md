@@ -346,29 +346,38 @@ in a later integration milestone. No wall-clock performance claim is made.
 
 # Milestone 7 — Python/C++ Integration
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
-Connect Python forecasting to the C++ tiering engine without placing Python inference on the foreground request path.
+Connect accepted Python policy decisions to the C++ tiering engine and certify
+synchronous operation-level execution parity.
 
 ## Required capabilities
 
-- thin pybind11 interface;
-- compact batched forecast updates;
-- asynchronous event collection;
-- forecast snapshots;
-- C++ placement worker;
-- end-to-end metrics;
-- integration tests.
+- private `prism._native` pybind11 extension and public `prism.native` wrapper;
+- native builder input from deterministic Python-supplied immutable bytes;
+- structured native errors and immutable operation results;
+- independent Python expected-state ledger;
+- exact parity for Training-Popularity Static, Predictive Greedy, LRU, and LFU;
+- forced dynamic fixtures and an accepted seed-1729 representative run;
+- deterministic store, manifest, JSONL operation, and JSON report artifacts;
+- editable and wheel installation tests.
 
 ## Completion gate
 
-- Foreground reads do not call Python synchronously.
-- Forecast updates cross the boundary in batches.
-- Ownership and lifetimes across the boundary are documented and tested.
-- End-to-end runs combine Python prediction with real C++ RAM/SSD placement.
-- Prediction and migration overhead are measured.
+- Python retains policy, forecast, benefit, and victim decisions; C++ retains
+  authoritative bytes, residency, movement, integrity checks, and counters.
+- Four policies have zero operation, payload, state, counter, or capacity
+  mismatches in both validation and test.
+- Forced fixtures exercise changed/unchanged targets and reactive movement.
+- Two complete fixture roots and two complete representative roots are
+  byte-identical.
+- Editable, wheel, Debug, ASan, UBSan, and Python regressions pass.
+
+This milestone is intentionally synchronous. Background migration, GIL release,
+batching, concurrency, and timing measurement remain future work rather than
+being silently included in the integration milestone.
 
 ---
 

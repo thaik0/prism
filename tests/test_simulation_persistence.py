@@ -14,6 +14,7 @@ from prism.simulation.persistence import (
     SIMULATION_ARTIFACT_FILENAMES,
     SimulationInputError,
     SimulationOutputDirectoryError,
+    load_policy_inputs,
     run_simulated_evaluation,
 )
 from prism.workload import WorkloadConfig, generate_workload, persist_workload
@@ -57,6 +58,9 @@ def test_representative_simulation_gates_artifacts_and_determinism(tmp_path) -> 
     second = run_simulated_evaluation(
         source, predictor, MILESTONE4_SIMULATION_CONFIG_PATH, output_b
     )
+    policy_inputs = load_policy_inputs(
+        source, predictor, MILESTONE4_SIMULATION_CONFIG_PATH
+    )
 
     assert set(_bytes(output_a)) == set(SIMULATION_ARTIFACT_FILENAMES)
     assert _bytes(output_a) == _bytes(output_b)
@@ -72,6 +76,18 @@ def test_representative_simulation_gates_artifacts_and_determinism(tmp_path) -> 
     assert first.projection.model.training_target_window_ids[0] == 3
     assert first.projection.model.training_target_window_ids[-1] == 599
     assert len(first.projection.model.training_target_window_ids) == 597
+    assert policy_inputs.workload_seed == 1729
+    assert policy_inputs.train_end == 600
+    assert policy_inputs.validation_end == 800
+    assert policy_inputs.evaluation_end == 1000
+    assert policy_inputs.record_ids == tuple(range(64))
+    assert policy_inputs.observable_demand.flags.writeable is False
+    assert policy_inputs.predicted_record_demand.flags.writeable is False
+    assert np.array_equal(
+        policy_inputs.predicted_record_demand,
+        first.projection.predicted_record_demand,
+        equal_nan=True,
+    )
 
     with np.load(output_a / "projection_model.npz", allow_pickle=False) as archive:
         assert set(archive.files) == set(PROJECTION_ARRAYS)
