@@ -1,6 +1,6 @@
 # Milestone 8 Execution Plan
 
-**Status:** In progress
+**Status:** Complete
 
 ## Scope
 
@@ -28,10 +28,13 @@ controller and does not use Prism's native C++ store.
 This post-release commit is intentionally pinned because it retains the frozen
 RTXPRO6000/Llama-3.1-8B artifacts while including upstream fixes for prefix
 cache hit, eviction, reload, multi-tier transfer, and memory accounting.
-LLMServingSim's supported simulator environment is the
-`astrasim/tutorial-micro2024` Docker image plus the repository's
+LLMServingSim's supported simulator environment is the exact
+`astrasim/tutorial-micro2024@sha256:567a0f020f18de9b7391d620041d2fd10120d6e0f1485b5110e0db79c2849305`
+Docker image plus the repository's
 `scripts/compile.sh`; the profiler/benchmark environment is separate and is not
-needed because the required bf16 profile is bundled.
+needed because the required bf16 profile is bundled. The generated Chakra
+protobuf sources require protobuf runtime `7.35.1`; all other Python packages
+are pinned in `integration/llmservingsim/Dockerfile`.
 
 ## Frozen configuration
 
@@ -49,6 +52,35 @@ needed because the required bf16 profile is bundled.
 
 All resolved byte/block values and source hashes are computed before policy
 results and reused without tuning.
+
+## Isolated upstream patch inventory
+
+`integration/llmservingsim/prism_hook.patch` changes only
+`serving/core/router.py` and `serving/__main__.py` in a disposable copy:
+
+- `Router.__init__` accepts and stores one default-`None` `prism_hook` argument.
+- Immediately before native prefix matching, the router calls
+  `before_request`; immediately after native `add_request`, it calls
+  `after_request_revealed`. One added blank separator after the prefix-cache
+  `add_request` call is formatting-only.
+- The CLI accepts one default-`None` `--prism-hook-config` argument.
+- When that argument is present, main lazily imports `load_hook`, constructs the
+  hook, and passes it to `Router`; the absent path constructs the router exactly
+  as before except for the defaulted keyword.
+- Native arrival routing retains its original location for hook-disabled LRU.
+  Deployable hooked policies skip that call, process completions, call
+  `after_lifecycle` when one or more requests finished, then route the same
+  arrivals so placement sees completions before request reveal. The completion
+  gate avoids a full radix scan after batches that cannot change reusable
+  prefix residency.
+- Completed requests, newly scheduled native batches, and final simulator state
+  are forwarded respectively to `on_request_completed`, `on_batch_scheduled`,
+  and `finalize`.
+
+No scheduler, memory, ASTRA-Sim, hardware profile, batching algorithm, routing
+algorithm, or model-execution file is changed. The patch is optional, hashed in
+every manifest, behavior-tested with the hook absent, and not applied to the
+checked-in upstream submodule.
 
 ## Implementation sequence
 
@@ -103,10 +135,12 @@ results and reused without tuning.
   required patch is kept minimal under `integration/llmservingsim`, hashed in
   the manifest, applied only to a disposable upstream worktree, and tested with
   the hook disabled.
-- The local Docker client is installed but the daemon was not running at
-  inspection time. Full upstream execution requires the pinned container or a
-  compatible prebuilt ASTRA-Sim environment; any unavailable verification will
-  be reported rather than replaced with mocked timing.
+- The host is arm64 while the official image is amd64. Docker runs the pinned
+  image under platform emulation. Because this Docker Desktop installation
+  rejects starting newly built local images, policy commands execute during
+  isolated Docker build layers and artifacts are extracted from never-started
+  containers. This changes host orchestration only; the simulator command and
+  timing model are unchanged.
 - Generated experiment roots remain outside Git. Canonical files contain no
   timestamps or absolute machine paths.
 

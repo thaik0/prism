@@ -22,11 +22,21 @@ structured errors/counters, full inspection, and deterministic JSONL replay.
 **Milestone 7** adds a private `pybind11` extension, deterministic workload-sized
 payloads, a public synchronous Python wrapper, and exact operation-level native
 execution parity for Training-Popularity Static, Predictive Greedy, LRU, and LFU.
+**Milestone 8** pins LLMServingSim 2.0 and evaluates six reusable prefix-KV
+placement policies with simulator-native scheduling, transfers, recomputation,
+TTFT, TPOT, latency, and throughput. Prism controls only eligible unpinned
+reusable GPU prefix blocks; active KV and execution remain simulator-owned.
 
 Milestones 1--5.5 continue to use simulated costs. Milestones 6--7 provide real
 filesystem reads and process-owned memory plus verified Python/C++ semantics,
 but collect no canonical wall-clock timing and make no RAM/SSD
 performance-superiority claim. Asynchronous migration remains unimplemented.
+
+Milestone 8 is a separate simulated LLM-serving evaluation and does not route KV
+execution through the Milestone 7 native store.
+Its frozen full experiment found identical TTFT and recomputation for static,
+frozen, predictive, LFU, and native LRU; Oracle added transfer traffic and was
+slightly slower. This is a pinned-simulator result, not a real-hardware claim.
 
 ## Requirements
 
@@ -187,6 +197,28 @@ variation.
 ```bash
 python3 -m pytest -q
 ```
+
+## Run the pinned LLMServingSim integration
+
+Initialize the recursively pinned submodule and build the documented Docker
+runtime, then run the frozen 300-request experiment:
+
+```bash
+git submodule update --init --recursive third_party/LLMServingSim
+
+PYTHONPATH=src python3 -m prism.llm_sim.cli \
+  --config configs/milestone8_llmservingsim.json \
+  --output-dir /tmp/prism_milestone8 \
+  --workers 6
+```
+
+Use `--tiny` for the bundled ten-request smoke trace. `--workers` changes only
+host-side orchestration: every policy still runs in a separate clean simulator
+image with the same frozen inputs and budget. The experiment root contains the
+canonical manifest, catalog, logical-demand matrix and hash, policy summaries,
+per-request metrics, comparison report, and raw per-policy simulator outputs.
+See [the Milestone 8 execution plan](docs/execution_plan_milestone8.md) and
+[results](docs/milestone8_results.md).
 
 ## Build and exercise the native storage engine
 

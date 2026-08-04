@@ -176,3 +176,18 @@ def test_adapter_snapshot_and_pruning_are_deterministic(tmp_path: Path) -> None:
     second = adapter.apply_target(second_memory, target)
     assert first == second
     assert first.after.reusable_occupancy_blocks <= budget.reusable_gpu_blocks
+
+
+def test_adapter_satisfied_target_is_a_native_no_op(tmp_path: Path) -> None:
+    catalog, budget, memory = _fixture(tmp_path)
+    adapter = LLMServingSimAdapter(catalog, budget)
+    target = catalog.requests[1].ordered_block_ids
+    first = adapter.apply_target(memory, target)
+    event_count = memory.events_applied
+
+    second = adapter.apply_target(memory, target)
+
+    assert first.after == second.before == second.after
+    assert second.evicted_block_ids == ()
+    assert second.structurally_evicted_native_tokens == 0
+    assert memory.events_applied == event_count

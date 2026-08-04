@@ -22,8 +22,16 @@ class HookError(RuntimeError):
 class SimulatorHook:
     """One clean policy runtime attached to one simulator process."""
 
-    def __init__(self, payload_path: str | Path):
-        payload = json.loads(Path(payload_path).read_text(encoding="utf-8"))
+    def __init__(self, payload_path: str | Path | dict[str, Any]):
+        if isinstance(payload_path, dict):
+            payload = payload_path
+        else:
+            raw = str(payload_path)
+            payload = (
+                json.loads(raw)
+                if raw.lstrip().startswith("{")
+                else json.loads(Path(raw).read_text(encoding="utf-8"))
+            )
         expected = {"config", "output_dir", "policy_id", "tiny"}
         if set(payload) != expected:
             raise HookError("hook payload keys differ from the fixed protocol")
@@ -68,6 +76,8 @@ class SimulatorHook:
         self._batch_metrics: list[dict[str, Any]] = []
         self._last_batch_id = -1
         self._placement_changes = 0
+        self._native_residency_changes = 0
+        self._last_resident_block_ids: frozenset[str] = frozenset()
         self._promoted_blocks = 0
         self._evicted_blocks = 0
         self._max_reusable_occupancy = 0
@@ -116,17 +126,22 @@ class SimulatorHook:
 
     def after_lifecycle(self, cycle: int, schedulers: list[Any]) -> None:
         if self._desired_target is None:
+            resident: set[str] = set()
             for scheduler in schedulers:
-                occupancy = self.adapter.snapshot(
-                    scheduler.memory
-                ).reusable_occupancy_blocks
+                snapshot = self.adapter.snapshot(scheduler.memory)
+                occupancy = snapshot.reusable_occupancy_blocks
                 self._max_reusable_occupancy = max(
                     self._max_reusable_occupancy, occupancy
                 )
+                resident.update(snapshot.resident_block_ids)
+            self._observe_native_residency(resident)
             return
+        resident = set()
         for scheduler in schedulers:
             outcome = self.adapter.apply_target(scheduler.memory, self._desired_target)
             self._record_placement("after_lifecycle", int(cycle), outcome)
+            resident.update(outcome.after.resident_block_ids)
+        self._observe_native_residency(resident)
 
     def on_batch_scheduled(self, batch: Any | None) -> None:
         if batch is None or int(batch.batch_id) <= self._last_batch_id:
@@ -206,7 +221,9 @@ class SimulatorHook:
             "logical_demand_sha256": self.demand.logical_stream_sha256,
             "request_count": self.split.request_count,
             "total_cycles_ns": int(cycle),
+            "target_changes": self._placement_changes,
             "placement_changes": self._placement_changes,
+            "native_reusable_residency_changes": self._native_residency_changes,
             "blocks_promoted": self._promoted_blocks,
             "blocks_evicted": self._evicted_blocks,
             "max_reusable_occupancy_blocks": self._max_reusable_occupancy,
@@ -253,8 +270,15 @@ class SimulatorHook:
             }
         )
 
+    def _observe_native_residency(self, resident_block_ids: set[str]) -> None:
+        current = frozenset(resident_block_ids)
+        self._native_residency_changes += len(
+            current.symmetric_difference(self._last_resident_block_ids)
+        )
+        self._last_resident_block_ids = current
 
-def load_hook(payload_path: str | Path) -> SimulatorHook:
+
+def load_hook(payload_path: str | Path | dict[str, Any]) -> SimulatorHook:
     """Stable entry point imported by the upstream patch."""
     return SimulatorHook(payload_path)
 

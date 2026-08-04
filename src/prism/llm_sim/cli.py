@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,7 @@ from .evaluate import (
 
 
 IMAGE = "prism-llmservingsim-m8:2c2042ce"
+RUNTIME_IMAGE = "prism-llmservingsim-m8-runtime:2c2042ce"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,7 +38,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--skip-container-build", action="store_true")
     parser.add_argument("--skip-upstream-build", action="store_true")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="independent policy processes to run concurrently (default: 1)",
+    )
     args = parser.parse_args(argv)
+
+    if not 1 <= args.workers <= 6:
+        parser.error("--workers must be between 1 and 6")
 
     config = IntegrationConfig.from_json(args.config)
     _verify_pins(config)
@@ -63,23 +74,46 @@ def main(argv: list[str] | None = None) -> int:
     )
     (output_dir / "runs").mkdir()
 
-    with tempfile.TemporaryDirectory(prefix="prism-m8-serving-") as temp:
-        patched_serving = Path(temp) / "serving"
-        shutil.copytree(config.upstream_root / "serving", patched_serving)
-        _apply_patch(Path(temp), patch_path)
+    with tempfile.TemporaryDirectory(prefix="prism-m8-runtime-") as temp:
+        runtime_root = Path(temp)
+        runtime_project = runtime_root / "project"
+        runtime_upstream = runtime_project / "third_party/LLMServingSim"
+        runtime_output = runtime_root / "output"
+        (runtime_project / "third_party").mkdir(parents=True)
+        runtime_output.mkdir()
+        (runtime_output / "runs").mkdir()
+        shutil.copytree(config.project_root / "src", runtime_project / "src")
+        shutil.copytree(config.project_root / "configs", runtime_project / "configs")
+        shutil.copytree(config.upstream_root, runtime_upstream, symlinks=False)
+        _apply_patch(runtime_upstream, patch_path)
         if args.runtime == "docker":
             if not args.skip_container_build:
                 _ensure_container_image(config)
             if not args.skip_upstream_build:
-                _ensure_upstream_binary(config)
+                _build_runtime_image(
+                    runtime_project,
+                    config.project_root
+                    / "integration/llmservingsim/Runtime.Dockerfile",
+                )
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            futures = {
+                policy_id: executor.submit(
+                    _run_policy,
+                    config,
+                    runtime_output,
+                    runtime_project,
+                    policy_id,
+                    tiny=args.tiny,
+                    runtime=args.runtime,
+                )
+                for policy_id in config.policy_ids
+            }
+            for policy_id in config.policy_ids:
+                futures[policy_id].result()
         for policy_id in config.policy_ids:
-            _run_policy(
-                config,
-                output_dir,
-                patched_serving,
-                policy_id,
-                tiny=args.tiny,
-                runtime=args.runtime,
+            shutil.copytree(
+                runtime_output / "runs" / policy_id,
+                output_dir / "runs" / policy_id,
             )
     aggregate_experiment(output_dir, config, tiny=args.tiny)
     print(f"completed deterministic six-policy experiment: {output_dir}")
@@ -118,41 +152,46 @@ def _ensure_container_image(config: IntegrationConfig) -> None:
         return
     dockerfile_dir = config.project_root / "integration/llmservingsim"
     _run_checked(
-        ["docker", "build", "-t", IMAGE, "-f", str(dockerfile_dir / "Dockerfile"), "."],
+        [
+            "docker", "build", "--platform", "linux/amd64", "-t", IMAGE,
+            "-f", str(dockerfile_dir / "Dockerfile"), ".",
+        ],
         cwd=dockerfile_dir,
     )
 
 
-def _ensure_upstream_binary(config: IntegrationConfig) -> None:
-    binary = (
-        config.upstream_root
-        / "astra-sim/build/astra_analytical/build/AnalyticalAstra/bin/AnalyticalAstra"
+def _build_runtime_image(runtime_project: Path, dockerfile: Path) -> None:
+    (runtime_project / ".dockerignore").write_text(
+        "\n".join(
+            (
+                "**/.git",
+                "third_party/LLMServingSim/docs",
+                "third_party/LLMServingSim/bench",
+                "third_party/LLMServingSim/outputs",
+                "",
+            )
+        ),
+        encoding="utf-8",
     )
-    if binary.is_file():
-        return
     _run_checked(
         [
-            "docker", "run", "--rm",
-            "-v", f"{config.upstream_root}:/app/LLMServingSim",
-            "-w", "/app/LLMServingSim",
-            IMAGE,
-            "bash", "scripts/compile.sh",
-        ]
+            "docker", "build", "--platform", "linux/amd64",
+            "-t", RUNTIME_IMAGE, "-f", str(dockerfile), ".",
+        ],
+        cwd=runtime_project,
     )
-    if not binary.is_file():
-        raise RuntimeError("upstream build completed without the analytical binary")
 
 
 def _run_policy(
     config: IntegrationConfig,
-    output_dir: Path,
-    patched_serving: Path,
+    runtime_output: Path,
+    runtime_project: Path,
     policy_id: str,
     *,
     tiny: bool,
     runtime: str,
 ) -> None:
-    run_dir = output_dir / "runs" / policy_id
+    run_dir = runtime_output / "runs" / policy_id
     run_dir.mkdir()
     if runtime == "docker":
         payload = {
@@ -163,7 +202,7 @@ def _run_policy(
         }
     else:
         payload = {
-            "config": str(config.config_path),
+            "config": str(runtime_project / "configs/milestone8_llmservingsim.json"),
             "output_dir": str(run_dir),
             "policy_id": policy_id,
             "tiny": tiny,
@@ -172,6 +211,7 @@ def _run_policy(
     payload_path.write_text(
         json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8"
     )
+    payload_argument = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     split = config.split(tiny=tiny)
     trace = config.tiny_trace if tiny else config.full_trace
     sim_args = [
@@ -197,46 +237,91 @@ def _run_policy(
         "--cleanup-inputs",
         "--log-level", "WARNING",
         "--prism-hook-config", (
-            f"/app/output/runs/{policy_id}/hook_payload.json"
+            payload_argument
             if runtime == "docker"
             else str(payload_path)
         ),
     ]
     if runtime == "docker":
-        command = [
-            "docker", "run", "--rm",
-            "-e", "PYTHONHASHSEED=0",
-            "-e", "PYTHONPATH=/app/prism/src:/app/LLMServingSim",
-            "-v", f"{config.project_root}:/app/prism",
-            "-v", f"{config.upstream_root}:/app/LLMServingSim",
-            "-v", f"{patched_serving}:/app/LLMServingSim/serving",
-            "-v", f"{output_dir}:/app/output",
-            "-w", "/app/LLMServingSim",
-            IMAGE,
-            *sim_args,
-        ]
+        command = []
         cwd = None
     else:
         environment = os.environ.copy()
         environment["PYTHONHASHSEED"] = "0"
+        runtime_upstream = runtime_project / "third_party/LLMServingSim"
         environment["PYTHONPATH"] = os.pathsep.join(
-            (str(config.project_root / "src"), str(Path(patched_serving).parent))
+            (str(runtime_project / "src"), str(runtime_upstream))
         )
         command = sim_args
-        cwd = Path(patched_serving).parent
+        cwd = runtime_upstream
     log_path = run_dir / "simulator_stdout.log"
     with log_path.open("w", encoding="utf-8") as log:
-        completed = subprocess.run(
-            command,
-            cwd=cwd,
-            env=None if runtime == "docker" else environment,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
+        if runtime == "docker":
+            build_root = runtime_output / "policy_build" / policy_id
+            build_root.mkdir(parents=True)
+            dockerfile = build_root / "Dockerfile"
+            dockerfile.write_text(
+                "\n".join(
+                    (
+                        f"FROM {RUNTIME_IMAGE}",
+                        "ENV PYTHONHASHSEED=0",
+                        (
+                            "ENV PYTHONPATH=/app/prism/src:"
+                            "/app/prism/third_party/LLMServingSim"
+                        ),
+                        "WORKDIR /app/prism/third_party/LLMServingSim",
+                        f"RUN {json.dumps(sim_args)}",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            policy_image = f"prism-llmservingsim-m8-policy:{policy_id}"
+            completed = subprocess.run(
+                [
+                    "docker", "build", "--platform", "linux/amd64", "--no-cache",
+                    "-t", policy_image, "-f", str(dockerfile), ".",
+                ],
+                cwd=build_root,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            container_id = None
+            try:
+                if completed.returncode == 0:
+                    container_id = _create_container([policy_image, "true"])
+                    _run_checked(
+                        [
+                            "docker", "cp",
+                            f"{container_id}:/app/output/runs/{policy_id}/.",
+                            str(run_dir),
+                        ]
+                    )
+            finally:
+                if container_id is not None:
+                    _remove_container(container_id)
+                subprocess.run(
+                    ["docker", "image", "rm", "-f", policy_image],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+        else:
+            completed = subprocess.run(
+                command,
+                cwd=cwd,
+                env=environment,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
     if completed.returncode:
         tail = "\n".join(log_path.read_text(encoding="utf-8").splitlines()[-40:])
         raise RuntimeError(f"policy {policy_id} failed with {completed.returncode}:\n{tail}")
+    generated_inputs = run_dir / "simulator_inputs"
+    if generated_inputs.exists():
+        shutil.rmtree(generated_inputs)
 
 
 def _capture(command: list[str]) -> str:
@@ -247,6 +332,28 @@ def _capture(command: list[str]) -> str:
 
 def _run_checked(command: list[str], cwd: Path | None = None) -> None:
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def _create_container(command: list[str]) -> str:
+    created = subprocess.run(
+        ["docker", "create", "--platform", "linux/amd64", *command],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    container_id = created.stdout.strip()
+    if not container_id:
+        raise RuntimeError("docker create returned no container ID")
+    return container_id
+
+
+def _remove_container(container_id: str) -> None:
+    subprocess.run(
+        ["docker", "rm", "-f", container_id],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
 
 
 if __name__ == "__main__":

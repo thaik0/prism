@@ -2,9 +2,9 @@
 
 ## Current status
 
-**Current milestone:** Milestone 6 — Native C++ Two-Tier Storage Engine
+**Current milestone:** Milestone 8 — Open-Source LLM Simulator Integration
 
-**Project stage:** Milestone 6 implemented and verified; policy integration deferred
+**Project stage:** Milestone 8 complete; Milestone 9 not started
 
 A milestone is complete only when:
 
@@ -383,19 +383,21 @@ being silently included in the integration milestone.
 
 # Milestone 8 — Open-Source LLM Simulator Integration
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
 Evaluate Prism inside an independently developed LLM inference simulation environment.
 
-## Required capabilities
+## Implemented capabilities
 
-- adapter from simulator events to Prism’s generic event interface;
-- mapping from simulator cache objects to Prism records;
-- predictive and reactive placement comparisons;
-- simulator-native latency and throughput metrics;
-- no reconstruction of transformer or GPU execution simulation.
+- exact LLMServingSim commit and recursive ASTRA-Sim submodule pins;
+- native radix-prefix pages mapped to stable Prism block records;
+- policy-independent logical demand with a frozen chronological split;
+- native LRU, LFU, three Prism placements, and nondeployable oracle;
+- a narrow hook controlling only unpinned reusable prefix placement;
+- simulator-native latency, throughput, transfer, and recomputation outcomes;
+- deterministic canonical artifacts and per-policy lifecycle logs.
 
 ## Completion gate
 
@@ -403,6 +405,15 @@ Evaluate Prism inside an independently developed LLM inference simulation enviro
 - Existing simulator policies and Prism receive equivalent workloads.
 - Integration does not require rewriting Prism’s core predictor/controller contract.
 - Results show whether the controlled-workload conclusions transfer.
+
+The integration reuses the accepted four-factor learner, predictor, projection,
+and deterministic greedy controller without tuning. LLMServingSim remains
+authoritative for scheduling, active KV, prefix matching, transfer, recompute,
+and execution timing. The Milestone 7 native store is intentionally not in this
+execution path. The frozen experiment produced a null/negative transfer result:
+static, frozen, predictive, LFU, and native LRU had identical test TTFT and
+recomputation, while Oracle added transfers and was slightly slower. See
+[the complete Milestone 8 results](milestone8_results.md).
 
 ---
 

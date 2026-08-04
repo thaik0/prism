@@ -81,7 +81,7 @@
              router.route_arrived_requests(current)
 
          instance_id = npu2inst_mapping[sys]  # get instance id from NPU id
-@@ -591,13 +599,22 @@
+@@ -591,13 +599,23 @@
          if instances[instance_id]["pd_type"] != "prefill":
              for req in finished_reqs:
                  router.notify_request_completed(req.id, current)
@@ -93,7 +93,8 @@
              router.transfer_prefill_request(finished_reqs)
 
 +        if prism_hook is not None:
-+            prism_hook.after_lifecycle(current, schedulers)
++            if len(finished_reqs) > 0:
++                prism_hook.after_lifecycle(current, schedulers)
 +            if dataset is not None and prism_hook.requires_completion_first:
 +                router.route_arrived_requests(current)
 +
@@ -104,7 +105,7 @@
          responded = False  # track whether we already sent a response to ASTRA-Sim
 
          # Check if a pre-generated workload is ready for this instance (from DP sync)
-@@ -920,6 +937,8 @@
+@@ -920,6 +938,8 @@
 
              # check if all instances are done
              if len(done_instance) == num_instances:

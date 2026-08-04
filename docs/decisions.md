@@ -657,3 +657,44 @@ callback, batching, background migration, or latency claim. The accepted
 representative predictive placement remains stable; forced fixtures establish
 dynamic path coverage but do not constitute new scientific actionability
 evidence.
+
+---
+
+## D028 — Simulator-owned execution with a reusable-prefix placement hook
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 8 pins LLMServingSim commit
+`2c2042ce4bf1b0283ebeed1db95db6f25e3e7511` and leaves request arrivals,
+batching, routing, active-request KV, prefix matching, transfer, recomputation,
+and execution timing authoritative in that simulator. Prism may select only a
+prefix-closed target of eligible, lock-free reusable GPU prefix pages within the
+pre-resolved 9,861-block budget. Native LRU runs with no target intervention.
+
+The upstream patch adds an optional configuration argument and lifecycle
+callbacks: load the hook, notify it immediately before and after request reveal,
+report completions and scheduled batches, apply placement after lifecycle
+events, and finalize artifacts. Deployable Prism policies process completions
+before same-cycle arrival routing so request `r` is decided from information
+through `r-1`. The patch does not touch scheduler, memory, ASTRA-Sim, profiling,
+or model-execution source.
+
+**Rationale**
+
+The pinned revision has no supported external prefix-policy interface. The
+isolated callback patch is the narrowest boundary that retains native simulator
+timing while allowing deterministic control of unpinned reusable pages. A
+hook-disabled behavioral test and an exact unmodified-upstream smoke run protect
+the native baseline.
+
+**Consequences and limitations**
+
+The adapter uses the pinned radix cache's private leaf-deletion and removal-event
+methods because there is no exact public target API. This makes the integration
+revision-specific. Host-to-GPU promotion remains demand-coupled through native
+prefix matching rather than being synthesized by Prism. Results apply only to
+the frozen Llama-3.1-8B/RTXPRO6000/ShareGPT simulator configuration and do not
+constitute real-hardware performance evidence. The Milestone 7 native store is
+not used, so residency and transfer are modeled exactly once.

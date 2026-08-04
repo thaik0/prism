@@ -186,6 +186,8 @@ class PolicyRuntime:
         self, request_id: int, eligible: set[str], resident: set[str]
     ) -> tuple[str, ...]:
         if not self.forecasts.prediction_available[request_id]:
+            if self.forecasts.fit_status == "degenerate_tiny_smoke_no_predictive_target":
+                return ()
             raise PolicyError(f"prediction is unavailable before request {request_id}")
         allowed = eligible & set(self._training_seen_ids())
         return self._select_greedy(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -7,7 +8,11 @@ import subprocess
 from prism.llm_sim.catalog import build_block_catalog
 from prism.llm_sim.config import IntegrationConfig
 from prism.llm_sim.demand import build_logical_demand
-from prism.llm_sim.evaluate import canonical_tree_hashes, write_static_artifacts
+from prism.llm_sim.evaluate import (
+    _target_comparison,
+    canonical_tree_hashes,
+    write_static_artifacts,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +43,27 @@ def test_canonical_static_artifacts_are_byte_deterministic(tmp_path: Path) -> No
             source_hashes={"fixture": "1" * 64},
         )
     assert canonical_tree_hashes(roots[0]) == canonical_tree_hashes(roots[1])
+    manifest = json.loads((roots[0] / "integration_manifest.json").read_text())
+    assert manifest["upstream"]["commit"] == CONFIG.upstream_commit
+    assert manifest["upstream"]["submodules"]["astra-sim"] == CONFIG.astra_sim_commit
+    assert manifest["dependencies"]["protobuf_runtime"] == "7.35.1"
+
+
+def test_target_diagnostics_are_request_aligned_and_deterministic() -> None:
+    left = [
+        {"request_id": 4, "target_block_ids": ["a", "b"]},
+        {"request_id": 5, "target_block_ids": []},
+    ]
+    right = [
+        {"request_id": 4, "target_block_ids": ["b", "c"]},
+        {"request_id": 5, "target_block_ids": []},
+    ]
+    assert _target_comparison(left, right) == {
+        "request_count": 2,
+        "disagreeing_request_count": 1,
+        "disagreement_rate": 0.5,
+        "mean_jaccard": (1 / 3 + 1) / 2,
+    }
 
 
 class _Scheduler:

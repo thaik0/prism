@@ -159,6 +159,21 @@ def test_tiny_degenerate_fit_is_explicit_not_hidden() -> None:
     }
     if forecasts.fit_status.startswith("degenerate"):
         assert not forecasts.prediction_available.any()
+        runtime = PolicyRuntime(
+            "predictive_greedy_prism",
+            catalog,
+            demand,
+            forecasts,
+            CONFIG.tiny_split,
+            budget,
+            CONFIG,
+        )
+        for request_id in range(CONFIG.tiny_split.training_end + 1):
+            decision = runtime.before_request(
+                request_id, eligible_block_ids=(), resident_block_ids=()
+            )
+            runtime.after_request(request_id)
+        assert decision.target_block_ids == ()
 
 
 def test_native_lru_adapter_path_never_supplies_a_target(tmp_path: Path) -> None:

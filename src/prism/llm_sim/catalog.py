@@ -161,11 +161,17 @@ def ancestors(block_id: str, catalog: BlockCatalog) -> tuple[str, ...]:
 def validate_prefix_closed(target: Iterable[str], catalog: BlockCatalog) -> tuple[str, ...]:
     normalized = tuple(sorted(set(target)))
     selected = set(normalized)
-    unknown = selected - set(catalog.by_id)
+    by_id = catalog.by_id
+    unknown = selected - set(by_id)
     if unknown:
         raise CatalogError(f"target contains unknown blocks: {sorted(unknown)}")
     for block_id in normalized:
-        missing = set(ancestors(block_id, catalog)) - selected
+        missing: set[str] = set()
+        parent = by_id[block_id].parent_block_id
+        while parent is not None:
+            if parent not in selected:
+                missing.add(parent)
+            parent = by_id[parent].parent_block_id
         if missing:
             raise CatalogError(
                 f"target is not prefix-closed for {block_id}: missing {sorted(missing)}"

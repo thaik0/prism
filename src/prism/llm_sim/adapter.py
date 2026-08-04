@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import heapq
 from typing import Any, Iterable
 
 from .catalog import (
     BlockCatalog,
     CatalogError,
-    block_id_for_token_path,
     validate_prefix_closed,
 )
 from .config import ResolvedBudget
@@ -38,7 +38,6 @@ class PlacementOutcome:
 @dataclass(frozen=True)
 class _NativePage:
     block_id: str
-    token_path: tuple[int, ...]
     node: Any
     pinned: bool
 
@@ -55,6 +54,12 @@ class LLMServingSimAdapter:
         self.catalog = catalog
         self.budget = budget
         self._known = set(catalog.by_id)
+        self._block_for_edge: dict[tuple[str | None, int], str] = {}
+        for block in catalog.blocks:
+            edge = (block.parent_block_id, block.native_block_hash)
+            previous = self._block_for_edge.setdefault(edge, block.block_id)
+            if previous != block.block_id:
+                raise AdapterError("catalog has an ambiguous native prefix edge")
 
     def snapshot(self, memory: Any) -> CacheSnapshot:
         npu = self._known_pages(memory.npu_prefix_cache)
@@ -95,6 +100,15 @@ class LLMServingSimAdapter:
         if target - eligible - pinned:
             raise AdapterError("desired target contains a block absent from both native tiers")
 
+        unwanted = set(before.resident_block_ids) - pinned - target
+        if not unwanted:
+            return PlacementOutcome(
+                before=before,
+                after=before,
+                evicted_block_ids=(),
+                structurally_evicted_native_tokens=0,
+            )
+
         evicted, structural_tokens = self._prune(memory, target | pinned)
         memory.apply_kv_cache_events()
         after = self.snapshot(memory)
@@ -115,80 +129,119 @@ class LLMServingSimAdapter:
         cache = memory.npu_prefix_cache
         before = set(self._known_pages(cache))
         structural_tokens = 0
+        heap: list[tuple[tuple[int, ...], int, Any]] = []
+        push_order = 0
         while True:
-            victim = self._next_victim_leaf(cache, keep)
-            if victim is None:
+            split_paths: list[tuple[int, ...]] = []
+            heap.clear()
+            for leaf in cache._collect_leaves():
+                candidate = self._leaf_candidate(cache, leaf, keep)
+                if candidate is None:
+                    continue
+                token_path, split_at = candidate
+                if split_at is not None:
+                    split_paths.append(token_path[:split_at])
+                else:
+                    heapq.heappush(heap, (token_path, push_order, leaf))
+                    push_order += 1
+            if split_paths:
+                cache.match_prefix(list(min(split_paths)))
+                continue
+            if not heap:
                 break
-            if victim.lock_ref > 0:
-                raise AdapterError("attempted to evict a pinned radix leaf")
-            structural_tokens += len(victim.key)
-            cache._delete_leaf(victim)
-            cache._record_remove_event(victim)
+            while heap:
+                _, _, victim = heapq.heappop(heap)
+                if victim.parent is None or victim.children:
+                    continue
+                if victim.lock_ref > 0:
+                    raise AdapterError("attempted to evict a pinned radix leaf")
+                parent = victim.parent
+                structural_tokens += len(victim.key)
+                cache._delete_leaf(victim)
+                cache._record_remove_event(victim)
+                if parent is not cache.root_node and not parent.children:
+                    candidate = self._leaf_candidate(cache, parent, keep)
+                    if candidate is not None:
+                        token_path, split_at = candidate
+                        if split_at is not None:
+                            raise AdapterError(
+                                "retained prefix boundary was not split before pruning"
+                            )
+                        heapq.heappush(heap, (token_path, push_order, parent))
+                        push_order += 1
+            break
         after = set(self._known_pages(cache))
+        if after - keep:
+            raise AdapterError("native radix pruning left unwanted known blocks resident")
         return before - after, structural_tokens
 
-    def _next_victim_leaf(self, cache: Any, keep: set[str]) -> Any | None:
-        candidates: list[tuple[tuple[int, ...], Any]] = []
-        for leaf in cache._collect_leaves():
-            if leaf is cache.root_node or leaf.lock_ref > 0:
-                continue
-            token_path = self._node_path(leaf)
-            page_ids = self._known_ids_along_path(token_path)
-            if not page_ids or all(block_id in keep for block_id in page_ids):
-                continue
-            # Prefix-closed targets mean every page following the first dropped
-            # page may be removed. Split at the exact retained page boundary so
-            # native leaf deletion never removes a retained ancestor.
-            retained_pages = 0
-            for block_id in page_ids:
-                if block_id not in keep:
-                    break
-                retained_pages += 1
-            retain_tokens = retained_pages * self.catalog.block_size_tokens
-            parent_tokens = len(token_path) - len(leaf.key)
-            if retain_tokens > parent_tokens:
-                cache.match_prefix(list(token_path[:retain_tokens]))
-                return self._next_victim_leaf(cache, keep)
-            candidates.append((token_path, leaf))
-        if not candidates:
+    def _leaf_candidate(
+        self, cache: Any, leaf: Any, keep: set[str]
+    ) -> tuple[tuple[int, ...], int | None] | None:
+        if leaf is cache.root_node or leaf.lock_ref > 0:
             return None
-        return min(candidates, key=lambda item: item[0])[1]
+        token_path = self._node_path(leaf)
+        page_ids = self._known_ids_along_path(token_path)
+        if not page_ids or all(block_id in keep for block_id in page_ids):
+            return None
+        retained_pages = 0
+        for block_id in page_ids:
+            if block_id not in keep:
+                break
+            retained_pages += 1
+        retain_tokens = retained_pages * self.catalog.block_size_tokens
+        parent_tokens = len(token_path) - len(leaf.key)
+        split_at = retain_tokens if retain_tokens > parent_tokens else None
+        return token_path, split_at
 
     def _known_pages(self, cache: Any | None) -> dict[str, _NativePage]:
         if cache is None:
             return {}
         result: dict[str, _NativePage] = {}
-        stack: list[tuple[Any, tuple[int, ...]]] = [(cache.root_node, ())]
+        stack: list[tuple[Any, str | None, tuple[int, ...]]] = [
+            (cache.root_node, None, ())
+        ]
         while stack:
-            node, parent_path = stack.pop()
-            node_path = parent_path + tuple(node.key or ())
+            node, parent_block_id, pending_tokens = stack.pop()
+            unprocessed = pending_tokens + tuple(node.key or ())
             pinned = node is not cache.root_node and node.lock_ref > 0
-            complete = len(node_path) // self.catalog.block_size_tokens
-            for page_count in range(1, complete + 1):
-                path = node_path[: page_count * self.catalog.block_size_tokens]
-                block_id = block_id_for_token_path(
-                    self.catalog.namespace, path, self.catalog.block_size_tokens
-                )
-                if block_id in self._known:
-                    previous = result.get(block_id)
-                    page = _NativePage(block_id, path, node, pinned)
-                    if previous is None or (page.pinned and not previous.pinned):
-                        result[block_id] = page
+            consumed = 0
+            block_size = self.catalog.block_size_tokens
+            path_is_known = True
+            while consumed + block_size <= len(unprocessed):
+                native_hash = hash(tuple(unprocessed[consumed : consumed + block_size]))
+                block_id = self._block_for_edge.get((parent_block_id, native_hash))
+                if block_id is None:
+                    path_is_known = False
+                    break
+                previous = result.get(block_id)
+                page = _NativePage(block_id, node, pinned)
+                if previous is None or (page.pinned and not previous.pinned):
+                    result[block_id] = page
+                parent_block_id = block_id
+                consumed += block_size
+            if not path_is_known:
+                continue
+            next_pending = unprocessed[consumed:]
             for child in sorted(
                 node.children.values(), key=lambda value: tuple(value.key or ()), reverse=True
             ):
-                stack.append((child, node_path))
+                stack.append((child, parent_block_id, next_pending))
         return result
 
     def _known_ids_along_path(self, token_path: tuple[int, ...]) -> tuple[str, ...]:
         result: list[str] = []
         block = self.catalog.block_size_tokens
+        parent_block_id: str | None = None
         for end in range(block, len(token_path) + 1, block):
-            block_id = block_id_for_token_path(
-                self.catalog.namespace, token_path[:end], block
+            native_hash = hash(tuple(token_path[end - block : end]))
+            block_id = self._block_for_edge.get(
+                (parent_block_id, native_hash)
             )
-            if block_id in self._known:
-                result.append(block_id)
+            if block_id is None:
+                break
+            result.append(block_id)
+            parent_block_id = block_id
         return tuple(result)
 
     @staticmethod
