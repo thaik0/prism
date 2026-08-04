@@ -1,0 +1,115 @@
+--- a/serving/core/router.py
++++ b/serving/core/router.py
+@@ -10,7 +10,8 @@
+             num_instances,
+             schedulers, req_num,
+             routing_policy="RR",
+-            seed=42
++            seed=42,
++            prism_hook=None,
+     ):
+         self.schedulers = schedulers
+         self.num_instances = num_instances
+@@ -21,6 +22,7 @@
+         self.req_num = req_num
+         self.routing_policy = routing_policy.upper()
+         self.seed = seed
++        self.prism_hook = prism_hook
+         self._rnd = random.Random(seed) if seed is not None else random
+         self.prefill_rr_counter = 0
+         self.decode_rr_counter = 0
+@@ -201,6 +203,9 @@
+             instance_id = self._select_instance(self.prefill_schedulers, "prefill")
+             sched = self.prefill_schedulers[instance_id]
+
++            if self.prism_hook is not None:
++                self.prism_hook.before_request(req_data, sched)
++
+             if sched.enable_prefix_caching:
+                 sched.add_request([
+                     req_data['index'], sched.model,
+@@ -208,6 +213,7 @@
+                     req_data['arrival_time_ns'], sched.instance_id,
+                     req_data.get('input_hash_ids', []), req_data.get('output_hash_ids', []),
+                 ], is_init=self._is_init)
++
+             else:
+                 sched.add_request([
+                     req_data['index'], sched.model,
+@@ -215,6 +221,9 @@
+                     req_data['arrival_time_ns'], sched.instance_id,
+                 ], is_init=self._is_init)
+
++            if self.prism_hook is not None:
++                self.prism_hook.after_request_revealed(req_data, sched)
++
+             self._pending_idx += 1
+             routed += 1
+
+--- a/serving/__main__.py
++++ b/serving/__main__.py
+@@ -291,6 +291,8 @@
+                         help='KV cache data type: auto (use default profile.csv) or fp8 (use profile_fp8.csv, halves KV cache memory)')
+     parser.add_argument('--network-backend', type=str, choices=['analytical', 'ns3'], default='analytical',
+                         help='network simulation backend: analytical (fast, default) or ns3 (detailed, WIP)')
++    parser.add_argument('--prism-hook-config', type=str, default=None,
++                        help='optional Prism reusable-prefix policy callback configuration')
+
+     args = parser.parse_args()
+
+@@ -466,7 +468,12 @@
+     # Controller for astra-sim process communication
+     controller = Controller(total_npu)
+     # Global Request Router
+-    router = Router(num_instances, schedulers, num_req, request_routing_policy)
++    prism_hook = None
++    if args.prism_hook_config is not None:
++        from prism.llm_sim.hook import load_hook
++        prism_hook = load_hook(args.prism_hook_config)
++    router = Router(num_instances, schedulers, num_req, request_routing_policy,
++                    prism_hook=prism_hook)
+     # Power Modeling if enabled
+     if power_modeling:
+         power_model = PowerModel(power_configs)
+@@ -558,7 +565,8 @@
+             current = out_dict['cycle']
+
+         # Route newly arrived requests to instances based on current load
+-        if dataset is not None:
++        if dataset is not None and (
++                prism_hook is None or not prism_hook.requires_completion_first):
+             router.route_arrived_requests(current)
+
+         instance_id = npu2inst_mapping[sys]  # get instance id from NPU id
+@@ -591,13 +599,22 @@
+         if instances[instance_id]["pd_type"] != "prefill":
+             for req in finished_reqs:
+                 router.notify_request_completed(req.id, current)
++                if prism_hook is not None:
++                    prism_hook.on_request_completed(req)
+
+         # Add prefill ended requests to decode instance
+         if instances[instance_id]["pd_type"] == "prefill" and len(finished_reqs) > 0:
+             router.transfer_prefill_request(finished_reqs)
+
++        if prism_hook is not None:
++            prism_hook.after_lifecycle(current, schedulers)
++            if dataset is not None and prism_hook.requires_completion_first:
++                router.route_arrived_requests(current)
++
+         # schedule requests
+         new_req = schedulers[instance_id].schedule(current, sys, id)
++        if prism_hook is not None:
++            prism_hook.on_batch_scheduled(new_req)
+         responded = False  # track whether we already sent a response to ASTRA-Sim
+
+         # Check if a pre-generated workload is ready for this instance (from DP sync)
+@@ -920,6 +937,8 @@
+
+             # check if all instances are done
+             if len(done_instance) == num_instances:
++                if prism_hook is not None:
++                    prism_hook.finalize(current, schedulers)
+                 for inst_idx in range(num_instances):
+                     schedulers[inst_idx].memory.free_prefix_cache()
+                     schedulers[inst_idx].memory.free_weight()

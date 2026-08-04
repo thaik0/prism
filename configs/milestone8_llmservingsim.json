@@ -29,7 +29,7 @@
   "seed": 1729,
   "fast_read_cost": 1.0,
   "slow_read_cost": 10.0,
-  "promotion_cost_per_byte": 0.0,
+  "promotion_cost_per_byte": 0.00000858306884765625,
   "anonymous_user": "anonymous",
   "request_type": "llm_request",
   "policy_ids": [

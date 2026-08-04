@@ -173,6 +173,18 @@ def validate_prefix_closed(target: Iterable[str], catalog: BlockCatalog) -> tupl
     return normalized
 
 
+def block_id_for_token_path(namespace: str, token_ids: Iterable[int], block_size: int) -> str:
+    """Return the catalog identity for one page-aligned native token path."""
+    tokens = tuple(token_ids)
+    if block_size <= 0 or not tokens or len(tokens) % block_size:
+        raise CatalogError("native token path must contain complete positive-size pages")
+    native_chain = (
+        hash(tokens[start : start + block_size])
+        for start in range(0, len(tokens), block_size)
+    )
+    return _path_block_id(namespace, native_chain)
+
+
 def _path_block_id(namespace: str, native_chain: Iterable[int]) -> str:
     material = namespace + "\n" + "/".join(str(value) for value in native_chain)
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
