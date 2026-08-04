@@ -1,0 +1,17 @@
+namespace prism.storage.fb;
+
+table Record {
+  record_id:ulong;
+  byte_offset:ulong;
+  byte_length:ulong;
+  crc32:uint;
+}
+
+table StoreIndex {
+  format_version:uint;
+  data_file_length:ulong;
+  records:[Record];
+}
+
+root_type StoreIndex;
+file_identifier "PRSM";

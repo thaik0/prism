@@ -1,0 +1,7 @@
+{
+  "records": [
+    {"record_id": 3, "payload_path": "payloads/record_3.bin"},
+    {"record_id": 1, "payload_path": "payloads/record_1.bin"},
+    {"record_id": 2, "payload_path": "payloads/record_2.bin"}
+  ]
+}

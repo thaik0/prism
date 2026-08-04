@@ -1,0 +1,139 @@
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
+#include <vector>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include "prism/storage/builder.hpp"
+#include "prism/storage/store_format.hpp"
+
+namespace {
+
+std::filesystem::path fresh_directory(const std::string& name) {
+  auto path = std::filesystem::temp_directory_path() / name;
+  std::error_code ignored;
+  std::filesystem::remove_all(path, ignored);
+  return path;
+}
+
+std::vector<char> bytes(const std::filesystem::path& path) {
+  std::ifstream stream(path, std::ios::binary);
+  return std::vector<char>(std::istreambuf_iterator<char>(stream), {});
+}
+
+void write_text(const std::filesystem::path& path, const std::string& value) {
+  std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+  stream << value;
+}
+
+const std::filesystem::path kFixtureManifest =
+    std::filesystem::path(PRISM_TEST_SOURCE_DIR) / "fixtures" /
+    "store_manifest.json";
+
+}  // namespace
+
+TEST_CASE("builder sorts records, writes exact bytes, and verifies checksums") {
+  const auto output = fresh_directory("prism_builder_valid");
+  const auto result = prism::storage::build_store(kFixtureManifest, output);
+  REQUIRE(result);
+  CHECK(result->record_count == 3);
+
+  const auto loaded = prism::storage::load_store_index(output);
+  REQUIRE(loaded);
+  CHECK(loaded->format_version == prism::storage::kStoreFormatVersion);
+  CHECK(loaded->records[0].record_id == 1);
+  CHECK(loaded->records[1].record_id == 2);
+  CHECK(loaded->records[2].record_id == 3);
+  CHECK(prism::storage::verify_all_records(*loaded).value() == 3);
+
+  std::vector<char> expected;
+  for (const auto id : {1, 2, 3}) {
+    const auto payload = std::filesystem::path(PRISM_TEST_SOURCE_DIR) /
+                         "fixtures" / "payloads" /
+                         ("record_" + std::to_string(id) + ".bin");
+    const auto part = bytes(payload);
+    expected.insert(expected.end(), part.begin(), part.end());
+  }
+  CHECK(bytes(output / prism::storage::kStoreDataFilename) == expected);
+}
+
+TEST_CASE("repeated builds are byte-identical and input-order independent") {
+  const auto root = fresh_directory("prism_builder_determinism");
+  std::filesystem::create_directories(root);
+  const auto reversed_manifest = root / "manifest.json";
+  write_text(reversed_manifest,
+             "{\"records\":["
+             "{\"record_id\":2,\"payload_path\":\"" +
+                 (std::filesystem::path(PRISM_TEST_SOURCE_DIR) / "fixtures" /
+                  "payloads" / "record_2.bin")
+                     .string() +
+                 "\"},"
+                 "{\"record_id\":1,\"payload_path\":\"" +
+                 (std::filesystem::path(PRISM_TEST_SOURCE_DIR) / "fixtures" /
+                  "payloads" / "record_1.bin")
+                     .string() +
+                 "\"},"
+                 "{\"record_id\":3,\"payload_path\":\"" +
+                 (std::filesystem::path(PRISM_TEST_SOURCE_DIR) / "fixtures" /
+                  "payloads" / "record_3.bin")
+                     .string() +
+                 "\"}]}\n");
+  const auto first = root / "first";
+  const auto second = root / "second";
+  REQUIRE(prism::storage::build_store(kFixtureManifest, first));
+  REQUIRE(prism::storage::build_store(reversed_manifest, second));
+  CHECK(bytes(first / prism::storage::kStoreDataFilename) ==
+        bytes(second / prism::storage::kStoreDataFilename));
+  CHECK(bytes(first / prism::storage::kStoreIndexFilename) ==
+        bytes(second / prism::storage::kStoreIndexFilename));
+}
+
+TEST_CASE("builder rejects duplicate, missing, and zero-length payloads") {
+  const auto root = fresh_directory("prism_builder_invalid");
+  std::filesystem::create_directories(root);
+  write_text(root / "payload.bin", "payload");
+  write_text(root / "empty.bin", "");
+
+  write_text(root / "duplicate.json",
+             R"({"records":[{"record_id":1,"payload_path":"payload.bin"},{"record_id":1,"payload_path":"payload.bin"}]})");
+  auto duplicate = prism::storage::build_store(root / "duplicate.json",
+                                                root / "duplicate_store");
+  REQUIRE_FALSE(duplicate);
+  CHECK(duplicate.error().code == prism::storage::StoreErrorCode::duplicate_record);
+
+  write_text(root / "missing.json",
+             R"({"records":[{"record_id":1,"payload_path":"missing.bin"}]})");
+  auto missing = prism::storage::build_store(root / "missing.json",
+                                              root / "missing_store");
+  REQUIRE_FALSE(missing);
+  CHECK(missing.error().code == prism::storage::StoreErrorCode::io_error);
+  CHECK_FALSE(std::filesystem::exists(root / "missing_store"));
+  CHECK_FALSE(std::filesystem::exists(root / "missing_store.tmp"));
+
+  write_text(root / "empty.json",
+             R"({"records":[{"record_id":1,"payload_path":"empty.bin"}]})");
+  auto empty = prism::storage::build_store(root / "empty.json",
+                                            root / "empty_store");
+  REQUIRE_FALSE(empty);
+  CHECK(empty.error().code == prism::storage::StoreErrorCode::malformed_manifest);
+}
+
+TEST_CASE("builder preserves occupied destinations and temporary paths") {
+  const auto root = fresh_directory("prism_builder_publication");
+  std::filesystem::create_directories(root / "store");
+  write_text(root / "store" / "keep.txt", "keep");
+  auto occupied = prism::storage::build_store(kFixtureManifest, root / "store");
+  REQUIRE_FALSE(occupied);
+  CHECK(occupied.error().code == prism::storage::StoreErrorCode::destination_exists);
+  CHECK(bytes(root / "store" / "keep.txt") == std::vector<char>{'k', 'e', 'e', 'p'});
+
+  std::filesystem::create_directories(root / "other.tmp");
+  write_text(root / "other.tmp" / "keep.txt", "keep");
+  auto temporary = prism::storage::build_store(kFixtureManifest, root / "other");
+  REQUIRE_FALSE(temporary);
+  CHECK(temporary.error().code == prism::storage::StoreErrorCode::destination_exists);
+  CHECK(std::filesystem::exists(root / "other.tmp" / "keep.txt"));
+}
