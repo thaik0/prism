@@ -1,226 +1,117 @@
 # Prism
 
-Prism is a predictive storage-tiering research system. The current implementation
-includes **Milestone 1**, a controlled synthetic workload generator;
-**Milestone 2**, a deterministic slow structural-recovery baseline; and
-**Milestone 3**, a deterministic next-window activation and conditional-intensity
-predictor; and **Milestone 4**, a deterministic byte-constrained placement
-simulator. **Milestone 5** adds a frozen 36-run, 12-variant evaluation with two
-static Prism controls, three mechanical forecast ablations, dynamic-action and
-pre-transition diagnostics, paired comparisons, and deterministic aggregation.
-**Milestone 5.5** adds a frozen 27-run diagnosis across three activation regimes
-and cumulative horizons `1`, `2`, and `4`, tracing forecast movement through
-record ranking, controller rejection, oracle agreement, and promotion repayment.
-Milestone 4 consumes frozen predictor artifacts, calibrates
-record-demand projection on training windows only, warms six independent policies
-on validation, and evaluates access plus promotion cost on identical test events.
+Prism is an experimental storage-tiering system that explores whether learned
+demand structure can help decide what data should remain in expensive fast
+memory. It learns fuzzy latent working sets, estimates demand, projects that
+demand to records or prefix blocks, and passes the result to a deterministic
+cost-aware placement controller. The project spans controlled simulation, a
+native C++ RAM/file-backed store, exact Python/C++ execution parity, and a pinned
+LLM-serving simulator integration.
 
-**Milestone 6** adds a standalone C++17 storage library and tools: a deterministic
-FlatBuffers-indexed immutable store, validated file-backed slow reads, explicitly
-owned byte-constrained fast-tier buffers, atomic exact-target placement,
-structured errors/counters, full inspection, and deterministic JSONL replay.
-**Milestone 7** adds a private `pybind11` extension, deterministic workload-sized
-payloads, a public synchronous Python wrapper, and exact operation-level native
-execution parity for Training-Popularity Static, Predictive Greedy, LRU, and LFU.
-**Milestone 8** pins LLMServingSim 2.0 and evaluates six reusable prefix-KV
-placement policies with simulator-native scheduling, transfers, recomputation,
-TTFT, TPOT, latency, and throughput. Prism controls only eligible unpinned
-reusable GPU prefix blocks; active KV and execution remain simulator-owned.
+## Question and conclusion
 
-Milestones 1--5.5 continue to use simulated costs. Milestones 6--7 provide real
-filesystem reads and process-owned memory plus verified Python/C++ semantics,
-but collect no canonical wall-clock timing and make no RAM/SSD
-performance-superiority claim. Asynchronous migration remains unimplemented.
+Prism began with a stronger question: could context-informed forecasts move data
+before abrupt demand changes and outperform reactive caching after movement
+cost? Forecast metrics improved, but that improvement did not reliably produce
+useful placement actions. Stable residual demand, record projection, migration
+economics, and capacity competition dominated the controller.
 
-Milestone 8 is a separate simulated LLM-serving evaluation and does not route KV
-execution through the Milestone 7 native store.
-Its frozen full experiment found identical TTFT and recomputation for static,
-frozen, predictive, LFU, and native LRU; Oracle added transfer traffic and was
-slightly slower. This is a pinned-simulator result, not a real-hardware claim.
+The final thesis is:
 
-## Requirements
+> **Prism learns latent-demand structure and uses it for stable, cost-aware
+> storage tiering.**
 
-- Python 3.11 or newer
-- NumPy
-- SciPy
-- scikit-learn
-- pytest, for development tests
-- CMake 3.24+, a C++17 compiler, and zlib, for Milestones 6--7
+Dynamic predictive actionability was not demonstrated. Milestone 9, the planned
+real heterogeneous deployment, was intentionally canceled at project closeout.
 
-The Milestone 1 generator itself remains standard-library-only.
+## Architecture
 
-## Generate the representative workload
+```mermaid
+flowchart LR
+    A["Access history"] --> B["Latent structure"]
+    B --> C["Demand estimation"]
+    C --> D["Record / block projection"]
+    D --> E["Deterministic cost-aware controller"]
+    E --> F["Simulated or native tier execution"]
+    G["Sizes, capacity, residency,<br/>and movement cost"] --> E
 
-From the repository root:
+    subgraph ML["ML estimates demand"]
+        B
+        C
+        D
+    end
+
+    subgraph SYS["Systems logic chooses placement"]
+        E
+        F
+    end
+```
+
+Synthetic hidden truth is separate from model-visible events. Compared policies
+receive identical frozen traces. ML never chooses storage actions directly.
+
+## What the experiments found
+
+- The representative NMF recovered fuzzy working-set structure with mean cosine
+  similarity `0.949876` and support recall `0.785291` versus `0.25` analytic
+  chance.
+- On the dedicated controlled trace, activation Brier score improved from
+  `0.172441` to `0.159576`, and conditional-intensity RMSE improved from
+  `0.378863` to `0.365930`.
+- In the frozen 36-run placement study, Predictive Greedy (Prism) matched
+  Validation-Final Frozen (Prism) in 35 runs and Recent-State-Only (Prism
+  ablation) in cost in 34 runs.
+- All four precommitted sparse, multi-window Milestone 5.5 candidate cells made
+  zero test target changes and failed every actionability gate.
+- The native engine passed deterministic correctness, corruption, atomicity,
+  and sanitizer tests. Four Python policy paths matched 130,349 native
+  operations with zero mismatches or capacity violations.
+- In the pinned LLMServingSim run, static, frozen, predictive, LFU, and native
+  LRU had identical TTFT and recomputation. Oracle added 56 MiB of transfer and
+  was `1.401 ms` slower in mean TTFT.
+
+These are controlled and simulator-specific results, not production or
+real-hardware performance claims.
+
+## Implementation highlights
+
+- seeded contextual workload generator with leakage-safe hidden truth;
+- deterministic NMF structure recovery and fixed linear forecast baselines;
+- training-only record-demand projection and deterministic byte-constrained
+  placement;
+- frozen multi-seed controls, ablations, oracle diagnostics, and actionability
+  gates;
+- C++17 immutable two-tier store with CRC-verified reads and atomic exact-target
+  transitions;
+- private pybind11 boundary with an independent Python semantic-parity ledger;
+- narrow LLMServingSim hook that leaves scheduling, active KV, transfers,
+  recomputation, and timing simulator-owned.
+
+## Quick start
+
+Supported development environments are POSIX macOS and Linux with Python 3.11+
+and CMake 3.24+. A C++17 compiler and zlib are required for the native extension.
+
+```bash
+python3 -m pip install -e .
+python3 -m pytest -q
+python3 -m compileall -q src tests
+python3 -m pip check
+```
+
+Generate and validate the small representative workload:
 
 ```bash
 PYTHONPATH=src python3 -m prism.workload.cli \
   --config configs/milestone1_representative.json \
-  --output-dir /tmp/prism_milestone1_run
-```
+  --output-dir /tmp/prism_m1
 
-The destination must not already contain files. The command writes exactly:
-
-```text
-config.json
-observable_events.jsonl
-hidden_ground_truth.json
-summary.json
-```
-
-`observable_events.jsonl` is the model-plausible access history. Configuration is
-experiment metadata, while `hidden_ground_truth.json` is strictly simulator-only
-and must never be used as predictor input.
-
-## Recover slow working-set structure
-
-After generating and validating a source trace:
-
-```bash
-PYTHONPATH=src python3 -m prism.structure.cli \
-  --run-dir /tmp/prism_milestone1_run \
-  --config configs/milestone2_representative.json \
-  --output-dir /tmp/prism_milestone2_run
-```
-
-The learner counts raw accesses in every configured window and record, fits one
-fixed deterministic scikit-learn NMF with supplied factor count `K`, normalizes
-learned fuzzy memberships, and evaluates them against hidden truth only after
-fitting. It writes exactly `learner_config.json`, `demand_matrix.npz`,
-`learned_structure.npz`, and `recovery_report.json`.
-
-## Fit and evaluate the fast predictor
-
-After generating the dedicated source trace and passing its prerequisite gates:
-
-```bash
-PYTHONPATH=src python3 -m prism.predictor.cli \
-  --run-dir /tmp/prism_m3_predictor_source \
-  --structure-config configs/milestone2_representative.json \
-  --config configs/milestone3_predictor.json \
-  --output-dir /tmp/prism_milestone3_run
-```
-
-The command writes exactly `predictor_config.json`, `predictor_bundle.npz`,
-`predictions.npz`, and `evaluation_report.json`. Deployable arrays contain no
-hidden targets or planted identities.
-
-## Evaluate simulated placement policies
-
-After producing the dedicated source and a gate-passing frozen predictor run:
-
-```bash
-PYTHONPATH=src python3 -m prism.simulation.cli \
-  --run-dir /tmp/prism_m4_source \
-  --predictor-run-dir /tmp/prism_m4_predictor \
-  --config configs/milestone4_simulation.json \
-  --output-dir /tmp/prism_milestone4_run
-```
-
-The command verifies source hashes and dimensions, fits only the projection
-calibration, replays LRU, LFU, recent-demand greedy, predictive greedy, one-window
-oracle greedy, and one-window oracle exact, then writes exactly
-`simulation_config.json`, `projection_model.npz`, `policy_traces.npz`, and
-`evaluation_report.json`.
-
-## Run the frozen Milestone 5 evaluation
-
-```bash
-PYTHONPATH=src python3 -m prism.experiments.cli \
-  --manifest configs/milestone5_experiments.json \
-  --output-dir /tmp/prism_milestone5
-```
-
-The sequential harness runs all 12 variants at seeds `1729`, `2718`, and
-`31415`, preserves each Milestone 1--4 stage directory, and writes a complete
-index plus deterministic JSON and Markdown aggregates. Add `--experiment-id
-context_weak__seed_31415` for one run or `--resume` to hash-validate and reuse
-completed runs. A non-resume run rejects a nonempty destination.
-
-The completed sweep found that Predictive Greedy was identical to its frozen
-validation-final placement in 35 of 36 runs and identical in cost to the
-Recent-State-Only ablation in 34 of 36 runs. This qualifies the earlier result:
-the current implementation usually benefits from a good validation-developed
-placement, but the sweep does not support continued dynamic value from the fast
-predictor. See [the compact Milestone 5 results](docs/milestone5_results.md).
-
-## Run the frozen Milestone 5.5 diagnosis
-
-```bash
-PYTHONPATH=src python3 -m prism.experiments.cli \
-  --manifest configs/milestone55_actionability.json \
-  --output-dir /tmp/prism_milestone55
-```
-
-The 27-run sweep completed reproducibly and the sparse regimes separated as
-intended, but all four predeclared candidate cells remained identical to frozen
-placement and Recent-State-Only. The precommitted conclusion is
-`stable_cost_aware_tiering_reframe`: the evidence supports learned latent-demand
-structure for stable cost-aware placement, not useful dynamic predictive tiering
-from the current fast forecast. See [the diagnosis](docs/milestone55_actionability.md)
-and [compact results](docs/milestone55_results.md).
-
-## Python API
-
-```python
-from prism.workload import WorkloadConfig, generate_workload, persist_workload
-
-config = WorkloadConfig.from_json("configs/milestone1_representative.json")
-result = generate_workload(config)
-persist_workload(result, "/tmp/prism_milestone1_run")
-```
-
-`result.observable_events`, `result.hidden_ground_truth`, and `result.summary` are
-separate in-memory structures.
-
-## Validate scientific workload properties
-
-Validation analyzes an existing run without regenerating it or modifying its four
-source artifacts:
-
-```bash
 PYTHONPATH=src python3 -m prism.workload.validate \
-  --run-dir /tmp/prism_milestone1_run \
+  --run-dir /tmp/prism_m1 \
   --require-demonstrations
 ```
 
-This deterministically creates or replaces the separate derived artifact
-`workload_validation.json`. The required-demonstrations flag checks for a clear
-precursor followed by a burst, a clear precursor followed by no burst, and a burst
-without a clear precursor. For the longer predictor-prerequisite trace, generate
-`configs/milestone3_predictor_workload.json` and add
-`--require-intensity-signal` to require useful but imperfect conditional-intensity
-variation.
-
-## Test
-
-```bash
-python3 -m pytest -q
-```
-
-## Run the pinned LLMServingSim integration
-
-Initialize the recursively pinned submodule and build the documented Docker
-runtime, then run the frozen 300-request experiment:
-
-```bash
-git submodule update --init --recursive third_party/LLMServingSim
-
-PYTHONPATH=src python3 -m prism.llm_sim.cli \
-  --config configs/milestone8_llmservingsim.json \
-  --output-dir /tmp/prism_milestone8 \
-  --workers 6
-```
-
-Use `--tiny` for the bundled ten-request smoke trace. `--workers` changes only
-host-side orchestration: every policy still runs in a separate clean simulator
-image with the same frozen inputs and budget. The experiment root contains the
-canonical manifest, catalog, logical-demand matrix and hash, policy summaries,
-per-request metrics, comparison report, and raw per-policy simulator outputs.
-See [the Milestone 8 execution plan](docs/execution_plan_milestone8.md) and
-[results](docs/milestone8_results.md).
-
-## Build and exercise the native storage engine
+Build and test the standalone native engine:
 
 ```bash
 cmake -S cpp -B build/cpp-debug \
@@ -229,64 +120,44 @@ cmake -S cpp -B build/cpp-debug \
   -DPRISM_WARNINGS_AS_ERRORS=ON
 cmake --build build/cpp-debug --parallel
 ctest --test-dir build/cpp-debug --output-on-failure
-
-build/cpp-debug/prism_store_build \
-  --manifest cpp/tests/fixtures/store_manifest.json \
-  --output-dir /tmp/prism_store
-build/cpp-debug/prism_store_inspect \
-  --store-dir /tmp/prism_store --verify-all
-build/cpp-debug/prism_store_replay \
-  --store-dir /tmp/prism_store \
-  --capacity-bytes 40 \
-  --trace cpp/tests/fixtures/replay.jsonl \
-  --output /tmp/prism_replay.json
 ```
 
-The first configure fetches pinned dependency releases into the ignored build
-tree. See [the native engine documentation](docs/native_storage_engine.md) for
-the format, APIs, error/counter contracts, atomicity, determinism, sanitizer
-commands, and limitations.
-
-## Run Python/native execution parity
-
-Build the private extension through the project package, then run either the
-hand-checkable forced fixture or the accepted representative frozen inputs:
+Run the forced Python/C++ parity fixture:
 
 ```bash
-python3 -m pip install -e .
-python3 -c "import prism._native; import prism.native; print('native import ok')"
-
 python3 -m prism.native.cli \
   --fixture \
-  --output-dir /tmp/prism_m7_fixture
-
-python3 -m prism.native.cli \
-  --run-dir /tmp/prism_m7_source \
-  --predictor-run-dir /tmp/prism_m7_predictor \
-  --simulation-config configs/milestone4_simulation.json \
-  --output-dir /tmp/prism_milestone7
+  --output-dir /tmp/prism_native_fixture
 ```
 
-Both modes write exactly one native store and three deterministic top-level
-artifacts. See [the Python/C++ integration documentation](docs/python_cpp_integration.md)
-for ownership, payloads, errors, policy semantics, parity gates, packaging,
-commands, verified results, and limitations.
+The [reproducibility guide](docs/reproducibility.md) contains exact commands for
+the full controlled pipeline, sanitizer builds, frozen experiment families, and
+the pinned LLMServingSim integration.
 
-See [the Milestone 1 workload documentation](docs/workload_generator.md) for the
-generation model, schemas, engineering and scientific validation rules, and
-reproducibility contract. See [the Milestone 2 structural-recovery
-documentation](docs/structure_recovery.md) for demand construction, the fixed NMF
-baseline, recovery metrics, artifacts, limitations, and reproducibility.
-See [the Milestone 3 predictor documentation](docs/fast_predictor.md) for splits,
-features, fixed models, metrics, gates, artifacts, leakage protections, and
-limitations. See [the Milestone 4 simulated-placement
-documentation](docs/simulated_placement.md) for projection calibration, policy
-timing, byte capacity, cost accounting, transition metrics, scientific gates,
-artifacts, representative results, and limitations.
-See [the Milestone 5 results](docs/milestone5_results.md) for the frozen design,
-causal controls, full-sweep results, gate outcomes, reproducibility evidence, and
-small-sample limitations.
-See [the Milestone 5.5 actionability diagnosis](docs/milestone55_actionability.md)
-for cumulative horizons, common windows, signal-flow diagnostics, and the
-precommitted thesis gate, and [its results](docs/milestone55_results.md) for the
-frozen negative outcome and stable cost-aware tiering reframe.
+## Repository map
+
+| Path | Purpose |
+|---|---|
+| `src/prism/workload` | controlled trace generation and scientific validation |
+| `src/prism/structure` | demand matrices and latent working-set recovery |
+| `src/prism/predictor` | leakage-safe activation and intensity prediction |
+| `src/prism/simulation` | projection, policies, controller, and cost replay |
+| `src/prism/experiments` | frozen Milestone 5 and 5.5 orchestration |
+| `src/prism/native` | deterministic payloads and Python/C++ parity |
+| `src/prism/llm_sim` | pinned LLMServingSim policy integration |
+| `cpp` | native immutable two-tier storage engine and tools |
+| `configs` | committed experiment and controller configurations |
+| `docs` | architecture, milestone evidence, and closeout documentation |
+| `integration/llmservingsim` | isolated upstream hook and runtime definition |
+| `tests` | deterministic, failure-path, leakage, and integration tests |
+
+Start with the [final technical report](docs/final_report.md), the candid
+[lessons learned](docs/lessons_learned.md), or the complete
+[documentation index](docs/index.md).
+
+## Project status
+
+Prism is complete at `v1.0.0` as a reproducible research project. Milestones
+1--8 are closed. Milestone 9 is canceled. The repository is not production-ready:
+it has no asynchronous migration, concurrent native request path, mutable data,
+or demonstrated heterogeneous-hardware advantage.

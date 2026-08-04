@@ -212,10 +212,30 @@ produce byte-identical reports.
 
 ## Verification and limitations
 
-Separate builds support `PRISM_ENABLE_ASAN` and `PRISM_ENABLE_UBSAN`. The native
-suite covers deterministic builds, format corruption, exact reads, checksum and
-truncation handling, capacity and residency invariants, idempotence, staged
-failure atomicity, exact counters, strict replay, and repeated artifact bytes.
+Separate builds support `PRISM_ENABLE_ASAN` and `PRISM_ENABLE_UBSAN`:
+
+```bash
+cmake -S cpp -B build/cpp-asan \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DPRISM_BUILD_TESTS=ON \
+  -DPRISM_WARNINGS_AS_ERRORS=ON \
+  -DPRISM_ENABLE_ASAN=ON
+cmake --build build/cpp-asan --parallel
+ctest --test-dir build/cpp-asan --output-on-failure
+
+cmake -S cpp -B build/cpp-ubsan \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DPRISM_BUILD_TESTS=ON \
+  -DPRISM_WARNINGS_AS_ERRORS=ON \
+  -DPRISM_ENABLE_UBSAN=ON
+cmake --build build/cpp-ubsan --parallel
+ctest --test-dir build/cpp-ubsan --output-on-failure
+```
+
+The native suite covers deterministic builds, format corruption, exact reads,
+checksum and truncation handling, capacity and residency invariants, idempotence,
+staged failure atomicity, exact counters, strict replay, and repeated artifact
+bytes.
 
 No wall-clock timing is collected or placed in canonical artifacts. Ordinary
 file reads are influenced by the operating-system page cache, and this milestone

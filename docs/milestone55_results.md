@@ -70,7 +70,7 @@ failed and were retained as evidence.
 
 Nine simulation reports contain explicit warnings: eight note a failed legacy
 Milestone 4 scientific gate, and one (`baseline__h4__seed_2718`) notes that
-Oracle Greedy costs more than Predictive Greedy under different myopic
+Oracle Greedy costs more than Predictive Greedy (Prism) under different myopic
 trajectories. Oracle Exact was optimal per decision, but its independently
 evolving trajectory is not a global trajectory optimum. No engineering run was
 discarded because of these unfavorable scientific outcomes.
@@ -151,11 +151,13 @@ material, so the result is not explained by absence of placement opportunity.
 
 ## Static controls, ablations, and promotion value
 
-In all four candidate cells, Predictive Greedy was exactly identical to both
-Validation-Final Frozen and Recent-State-Only for every seed: access, promotion,
+In all four candidate cells, Predictive Greedy (Prism) was exactly identical to
+both Validation-Final Frozen (Prism) and Recent-State-Only (Prism ablation) for
+every seed: access, promotion,
 and combined-cost differences were all zero, target disagreement was zero, and
-transition coverage differences were zero. Training-Popularity Static and the
-Activation/Intensity-Only and Residual-Baseline-Only ablations remain reported
+transition coverage differences were zero. Training-Popularity Static (Prism)
+and the Activation/Intensity-Only (Prism ablation) and Residual-Baseline-Only
+(Prism ablation) policies remain reported
 per cell and seed in `aggregate_report.json` and `aggregate_tables.md`; they do
 not alter the precommitted decision.
 
@@ -169,7 +171,8 @@ undefined repayment fraction, and net value zero. Two diagnostic
 ## Exact thesis gates
 
 All seed-level Gate A fractions were `[0, 0, 0]`. Gate B combined-cost
-differences against both Frozen and Recent-State-Only were `[0, 0, 0]`. Gate C
+differences against both Frozen and Recent-State-Only (Prism ablation) were
+`[0, 0, 0]`. Gate C
 access-cost and transition-coverage differences were `[0, 0, 0]`. Gate D had no
 promotions and net value zero.
 

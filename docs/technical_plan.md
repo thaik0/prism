@@ -2,18 +2,23 @@
 
 ## Document status
 
-**Status:** Initial architecture approved  
-**Current implementation phase:** Milestone 6 complete — Native C++ two-tier storage substrate
+**Status:** Complete and closed
+**Current implementation phase:** Milestones 0--8 complete; Milestone 9 canceled
 
 **Last major planning revision:** August 2026
 
-This document is Prism’s architectural source of truth.
+This document is Prism’s architectural source of truth and historical plan.
 
-It describes the intended system, research thesis, component boundaries, evaluation philosophy, MVP, and long-term progression.
+It describes the intended system, research thesis, component boundaries,
+evaluation philosophy, completed implementation, and original long-term
+progression.
 
-It is not an instruction to implement every component immediately.
+Sections 4--21 preserve the initial plan and therefore use prospective language.
+Sections 22--28 record what was actually built and the final closeout decision.
+The preserved plan is not an active instruction to implement future components.
 
-Implementation must follow `docs/milestones.md`, and workers must implement only the active milestone.
+Implementation followed `docs/milestones.md`; there is no active milestone after
+project closeout.
 
 Settled architectural decisions are summarized in `docs/decisions.md`.
 
@@ -21,11 +26,10 @@ Settled architectural decisions are summarized in `docs/decisions.md`.
 
 # 1. Project Thesis
 
-Prism is a stable, cost-aware storage-tiering research system that learns
-recurring latent structure in data demand and feeds demand estimates to a
-deterministic placement controller. The current evidence supports the learned
-structure and validation-developed stable placement, but not useful dynamic
-placement caused by the current activation/intensity forecast.
+**Prism learns latent-demand structure and uses it for stable, cost-aware storage
+tiering.** The current evidence supports learned structure and
+validation-developed stable placement, but not useful dynamic placement caused
+by the current activation/intensity forecast.
 
 The original predictive research question remains open rather than demonstrated:
 
@@ -532,25 +536,25 @@ The storage implementation should remain deliberately simple to avoid hidden beh
 
 # 18. Development Progression
 
-1. Controlled workload generator
-2. Demand windows and slow working-set learner
-3. Fast activation/intensity predictor
-4. Simulated predictive placement
-5. Rigorous experiments and error analysis
-6. Predictive actionability diagnosis and thesis reframe (Milestone 5.5)
-7. Real C++ RAM/file-backed tiering engine (Milestone 6 complete)
-8. Synchronous Python/C++ execution parity (Milestone 7 complete)
-9. Open-source LLM inference simulator integration
-10. Real heterogeneous CPU/GPU/storage deployment
-11. Other application domains, including possible market-data workloads
+1. Controlled workload generator — complete
+2. Demand windows and slow working-set learner — complete
+3. Fast activation/intensity predictor — complete
+4. Simulated predictive placement — complete
+5. Rigorous experiments and error analysis — complete
+6. Predictive actionability diagnosis and thesis reframe (Milestone 5.5) — complete
+7. Real C++ RAM/file-backed tiering engine (Milestone 6) — complete
+8. Synchronous Python/C++ execution parity (Milestone 7) — complete
+9. Open-source LLM inference simulator integration (Milestone 8) — complete
+10. Real heterogeneous CPU/GPU/storage deployment (Milestone 9) — canceled
+11. Other application domains — not pursued
 
 Detailed completion gates are maintained in `docs/milestones.md`.
 
 ---
 
-# 19. MVP Definition
+# 19. Completed MVP Definition
 
-The first complete MVP consists of:
+The completed MVP consists of:
 
 - controlled contextual abrupt-burst workloads;
 - fuzzy overlapping working-set learning;
@@ -574,11 +578,13 @@ The MVP does not require:
 
 ---
 
-# 20. Long-Term Direction
+# 20. Former Long-Term Direction and Closeout
 
-After the RAM/SSD MVP, Prism should integrate with an existing open-source LLM inference simulator.
+After the RAM/SSD MVP, the plan called for integration with an existing
+open-source LLM inference simulator. Milestone 8 completed that integration with
+a pinned LLMServingSim revision.
 
-Prism should replace or augment placement behavior rather than simulate:
+Prism replaced only reusable prefix placement behavior rather than simulating:
 
 - transformer execution;
 - CUDA kernels;
@@ -586,7 +592,8 @@ Prism should replace or augment placement behavior rather than simulate:
 - GPU topology;
 - continuous batching.
 
-After simulator validation, Prism may be integrated with a real inference-serving or cache system managing data across:
+The original next step was a real inference-serving or cache system managing
+data across:
 
 \[
 \text{GPU HBM}
@@ -596,7 +603,10 @@ After simulator validation, Prism may be integrated with a real inference-servin
 \text{NVMe}
 \]
 
-Quant or market-data workloads remain possible later generalization experiments.
+That deployment was intentionally canceled at closeout. The pinned simulator
+showed no differentiated performance for the learned policies and did not expose
+a credible dynamic-actionability claim worth carrying into hardware. Other
+application-domain experiments were not pursued.
 
 ---
 
@@ -732,3 +742,40 @@ mismatches, invalidations, unexpected exceptions, or capacity violations; repeat
 output roots are byte-identical. This certifies synchronous integration
 semantics only. It adds no timing gate, concurrency, GIL release, background
 migration, C++ inference, native policy, or new predictive-actionability claim.
+
+---
+
+# 27. Milestone 8 LLMServingSim Instantiation
+
+Milestone 8 pins LLMServingSim commit
+`2c2042ce4bf1b0283ebeed1db95db6f25e3e7511` and applies one isolated optional
+hook in a disposable copy. The simulator remains authoritative for arrivals,
+scheduling, active-request KV, prefix matching, transfers, recomputation, and
+execution timing. Prism controls only eligible, unlocked reusable GPU prefix
+pages under a pre-resolved 9,861-block budget.
+
+The frozen 300-request experiment compares native LRU, LFU,
+Training-Popularity Static (Prism), Validation-Final Frozen (Prism), Predictive
+Greedy (Prism), and Oracle Greedy. The first five policies have identical test
+TTFT and recomputation. Oracle transfers 56 MiB, recomputes the same 2,832 blocks,
+and is 1.401 ms slower in mean TTFT. Two independent full runs produce
+byte-identical canonical artifacts.
+
+This is one pinned simulator result. It adds no real-hardware evidence, active-KV
+control, asynchronous prefetch, cold-start rescue, or restoration of the
+original dynamic-actionability thesis.
+
+---
+
+# 28. Project Closeout
+
+Prism closes after Milestone 8 with the thesis:
+
+> **Prism learns latent-demand structure and uses it for stable, cost-aware
+> storage tiering.**
+
+Milestone 9 is intentionally canceled. The project retains its original
+hypothesis, frozen negative results, and former deployment plan as historical
+evidence rather than rewriting them as though stable tiering had always been the
+goal. The `v1.0.0` release is a reproducible research closeout, not a claim of
+production readiness.

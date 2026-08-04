@@ -2,6 +2,12 @@
 
 This document records design decisions that are currently considered settled.
 
+Entries D001--D024 preserve the decisions made while testing the original
+predictive-actionability hypothesis. When prospective wording in those entries
+conflicts with later evidence, D025--D029 and the final report govern the closed
+project. Earlier decisions remain visible so the revised thesis is not presented
+as the original plan.
+
 It is not a general planning document. Each entry should describe:
 
 - the decision,
@@ -698,3 +704,38 @@ prefix matching rather than being synthesized by Prism. Results apply only to
 the frozen Llama-3.1-8B/RTXPRO6000/ShareGPT simulator configuration and do not
 constitute real-hardware performance evidence. The Milestone 7 native store is
 not used, so residency and transfer are modeled exactly once.
+
+---
+
+## D029 — Close the project after Milestone 8
+
+**Status:** Accepted
+
+**Decision**
+
+Prism closes as a completed reproducible research project with the thesis:
+
+> **Prism learns latent-demand structure and uses it for stable, cost-aware
+> storage tiering.**
+
+Milestone 9, the planned real heterogeneous deployment, is intentionally
+canceled. The `v1.0.0` release contains no new model, policy, experiment,
+deployment, or production claim.
+
+**Rationale**
+
+Milestone 5.5's precommitted sparse and longer-horizon cells all failed the
+actionability gates. Milestone 8 preserved that result: five non-Oracle policies
+had identical TTFT and recomputation in the pinned simulator, while Oracle added
+transfer traffic and was slightly slower. A hardware deployment would add
+substantial concurrency and transfer complexity without a supported dynamic
+placement effect to validate.
+
+**Consequences and limitations**
+
+The original hypothesis, former Milestone 9 plan, and negative results remain in
+the documentation as history. Future research directions are described as open
+questions, not an active roadmap. The release certifies reproducibility,
+controlled scientific evidence, native storage correctness, semantic parity,
+and one pinned simulator integration; it is not production-ready and makes no
+real-hardware performance claim.

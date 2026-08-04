@@ -2,9 +2,14 @@
 
 ## Current status
 
-**Current milestone:** Milestone 8 — Open-Source LLM Simulator Integration
+**Current milestone:** None — project complete
 
-**Project stage:** Milestone 8 complete; Milestone 9 not started
+**Project stage:** Milestones 0--8 complete; Milestone 9 intentionally canceled
+
+Prism closed after Milestone 8 with the evidence-supported thesis that learned
+latent-demand structure can support stable, cost-aware tiering. The planned real
+heterogeneous deployment did not have a supported dynamic-actionability claim to
+validate, so it was canceled rather than implemented speculatively.
 
 A milestone is complete only when:
 
@@ -19,7 +24,7 @@ A milestone is complete only when:
 
 # Milestone 0 — Repository Foundation
 
-**Status:** In progress
+**Status:** Complete
 
 ## Objective
 
@@ -419,13 +424,13 @@ recomputation, while Oracle added transfers and was slightly slower. See
 
 # Milestone 9 — Real Heterogeneous Deployment
 
-**Status:** Not started
+**Status:** Canceled at project closeout
 
-## Objective
+## Former objective
 
 Apply Prism to real inference state across GPU memory, CPU memory, and possibly local SSD.
 
-## Potential capabilities
+## Formerly proposed capabilities
 
 - real GPU-resident cache objects;
 - CPU/GPU transfer;
@@ -433,9 +438,17 @@ Apply Prism to real inference state across GPU memory, CPU memory, and possibly 
 - real TTFT, throughput, and memory-pressure measurements;
 - concurrency and contention analysis.
 
-## Completion gate
+## Closeout decision
 
-This milestone will be defined only after the LLM simulator integration exposes a specific and credible deployment target.
+Milestone 8 did not expose a specific, credible dynamic-placement benefit to
+validate on real heterogeneous hardware. Static, frozen, predictive, LFU, and
+native LRU had identical TTFT and recomputation in the pinned simulator run;
+Oracle added transfers and was slightly slower. Building a deployment would
+therefore add concurrency, hardware, and transfer complexity without repairing
+the missing forecast-to-action link.
+
+The milestone remains in this document to preserve the original progression. It
+is not active or deferred work, and no Milestone 9 behavior was implemented.
 
 ---
 

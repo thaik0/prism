@@ -9,7 +9,7 @@ matched Recent-State-Only (Prism ablation) in total cost in 34 runs.
 
 ## Why Milestone 4 required qualification
 
-The accepted seed-1729 Milestone 4 run reported Predictive Greedy test access
+The accepted seed-1729 Milestone 4 run reported Predictive Greedy (Prism) test access
 cost `57,764`, promotion cost `0`, combined cost `57,764`, and hit rate
 `0.540704`. Recent-Demand Greedy reported access cost `58,277`, promotion cost
 `12,163.7827`, combined cost `70,440.7827`, and hit rate `0.535638`. Predictive
@@ -116,7 +116,7 @@ for `noise_low__seed_2718`. Gate 5 failed for all `burst_short` seeds. Every
 exact solve still proved its per-window optimum; different myopic trajectories
 can make Oracle Exact's complete-run cost exceed Oracle Greedy's.
 
-## Predictive Greedy results
+## Predictive Greedy (Prism) results
 
 Costs are seed `1729/2718/31415`. Sample standard deviation uses `ddof=1`.
 `Burst` and `first two` are mean transition combined costs. `Coverage` is mean
@@ -191,7 +191,7 @@ coverage. Paired values again retain all three seed differences and `W/E/L`.
 | `context_strong` | 57653/36469/.6262 | 57653/36469/.6262 | 57653/36469/.6262 | 62855/39814/.5786 | 0/0/0; 0/3/0 | 0/0/0; 0/3/0 | -4203/-6903/-4500; 3/0/0 |
 | `context_weak` | 53417/32953/.6767 | 53417/32953/.6767 | 59420/36712/.6040 | 63176/39100/.5633 | 0/0/0; 0/3/0 | -6579/-7119/-4311; 3/0/0 | -10935/-14031/-4311; 3/0/0 |
 
-The full and Recent-State-Only costs are equal in 34 runs. The only differences
+The full and Recent-State-Only (Prism ablation) costs are equal in 34 runs. The only differences
 are `promotion_0__seed_31415` (`-45`) and `burst_short__seed_1729` (`-3321`).
 The latter still had no test action: the fast term changed the placement reached
 during validation, not continued test behavior. Strong, baseline, and weak
@@ -212,7 +212,7 @@ the 15 record-window disagreements in `promotion_0__seed_31415` and 400 in
 Only `promotion_0__seed_31415` had `dynamic_test_action=true`. It changed target
 sets in 56 of 200 windows (`28%`), made 84 promotions totaling `685,468` bytes,
 and differed from frozen in 36 windows and 108 record-windows. It differed from
-Recent-State-Only in 5 windows and 15 record-windows. The run recorded 7 useful
+Recent-State-Only (Prism ablation) in 5 windows and 15 record-windows. The run recorded 7 useful
 burst-start promotions and 10 useful first-two-window promotions.
 
 That dynamic run cost `243` less than frozen, but mean realized pre-transition
@@ -265,7 +265,8 @@ policies and are not normalized causal effects.
   failed the exact-controller trajectory gate despite optimal per-window solves.
 - **Context:** strong/baseline/weak means were
   `57,653.0/57,596.3/53,416.7`; projection RMSE was
-  `1.2155/1.2796/1.2787`. Predictive and Recent-State-Only were identical at all
+  `1.2155/1.2796/1.2787`. Predictive Greedy (Prism) and Recent-State-Only
+  (Prism ablation) were identical at all
   three levels, so the lower weak-context cost cannot be attributed to the fast
   predictor and should not be interpreted as monotonic context benefit.
 

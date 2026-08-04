@@ -113,9 +113,9 @@ evicted.
 
 ## Scientific answers
 
-1. Training-Popularity Static did not improve TTFT, transfer traffic, or
+1. Training-Popularity Static (Prism) did not improve TTFT, transfer traffic, or
    recomputation relative to native LRU; all three were identical.
-2. Validation-Final Frozen matched continued Predictive Greedy on every reported
+2. Validation-Final Frozen (Prism) matched continued Predictive Greedy (Prism) on every reported
    latency, throughput, hit, transfer, and recomputation result. Their test
    targets nevertheless disagreed on all 60 requests (mean Jaccard 0.8683).
 3. LFU was not a stronger performance baseline. It matched native LRU while
@@ -183,4 +183,5 @@ product code was changed in response to the environment-only denial.
   feature contract but provide no predictive context.
 - There was no predictor tuning, test-set adaptation, online NMF, cold-start
   rescue, active-KV control, scheduler modification, learned placement, or
-  native-store double modeling. No Milestone 9 behavior was implemented.
+  native-store double modeling. No Milestone 9 behavior was implemented; that
+  milestone was later intentionally canceled at project closeout.
