@@ -36,6 +36,8 @@ const char* to_string(StoreErrorCode code) noexcept {
       return "destination_exists";
     case StoreErrorCode::malformed_manifest:
       return "malformed_manifest";
+    case StoreErrorCode::malformed_trace:
+      return "malformed_trace";
     case StoreErrorCode::count:
       break;
   }

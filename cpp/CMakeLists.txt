@@ -98,6 +98,7 @@ add_library(prism_storage
   src/error.cpp
   src/store_format.cpp
   src/tiered_store.cpp
+  src/tooling.cpp
   "${PRISM_GENERATED_HEADER}"
 )
 add_dependencies(prism_storage prism_flatbuffers_generated)
@@ -115,6 +116,14 @@ add_executable(prism_store_build tools/build_main.cpp)
 target_link_libraries(prism_store_build PRIVATE prism_storage CLI11::CLI11 nlohmann_json::nlohmann_json)
 prism_configure_owned_target(prism_store_build)
 
+add_executable(prism_store_inspect tools/inspect_main.cpp)
+target_link_libraries(prism_store_inspect PRIVATE prism_storage CLI11::CLI11)
+prism_configure_owned_target(prism_store_inspect)
+
+add_executable(prism_store_replay tools/replay_main.cpp)
+target_link_libraries(prism_store_replay PRIVATE prism_storage CLI11::CLI11)
+prism_configure_owned_target(prism_store_replay)
+
 if(PRISM_BUILD_TESTS)
   FetchContent_Declare(
     catch2
@@ -128,6 +137,7 @@ if(PRISM_BUILD_TESTS)
   add_executable(prism_storage_tests
     tests/test_builder.cpp
     tests/test_tiered_store.cpp
+    tests/test_tooling.cpp
     tests/test_store_format.cpp
   )
   add_dependencies(prism_storage_tests prism_flatbuffers_generated)
@@ -135,7 +145,7 @@ if(PRISM_BUILD_TESTS)
   target_compile_definitions(prism_storage_tests PRIVATE
     PRISM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests"
   )
-  target_link_libraries(prism_storage_tests PRIVATE prism_storage Catch2::Catch2WithMain flatbuffers ZLIB::ZLIB)
+  target_link_libraries(prism_storage_tests PRIVATE prism_storage Catch2::Catch2WithMain flatbuffers ZLIB::ZLIB nlohmann_json::nlohmann_json)
   prism_configure_owned_target(prism_storage_tests)
   catch_discover_tests(prism_storage_tests)
 endif()

@@ -30,6 +30,7 @@ enum class StoreErrorCode {
   invalid_configuration,
   destination_exists,
   malformed_manifest,
+  malformed_trace,
   count,
 };
 
