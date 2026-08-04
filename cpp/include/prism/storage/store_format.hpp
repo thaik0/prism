@@ -47,4 +47,7 @@ struct LoadedStoreIndex {
 [[nodiscard]] Expected<std::uint64_t> verify_all_records(
     const LoadedStoreIndex& index);
 
+[[nodiscard]] std::uint32_t compute_crc32(
+    const std::vector<std::byte>& payload) noexcept;
+
 }  // namespace prism::storage

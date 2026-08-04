@@ -97,6 +97,7 @@ add_library(prism_storage
   src/builder.cpp
   src/error.cpp
   src/store_format.cpp
+  src/tiered_store.cpp
   "${PRISM_GENERATED_HEADER}"
 )
 add_dependencies(prism_storage prism_flatbuffers_generated)
@@ -126,6 +127,7 @@ if(PRISM_BUILD_TESTS)
 
   add_executable(prism_storage_tests
     tests/test_builder.cpp
+    tests/test_tiered_store.cpp
     tests/test_store_format.cpp
   )
   add_dependencies(prism_storage_tests prism_flatbuffers_generated)

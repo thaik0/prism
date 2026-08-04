@@ -71,7 +71,9 @@ Expected<std::vector<std::uint8_t>> read_file(
   }
 }
 
-std::uint32_t payload_crc32(const std::vector<std::byte>& payload) {
+}  // namespace
+
+std::uint32_t compute_crc32(const std::vector<std::byte>& payload) noexcept {
   uLong checksum = ::crc32(0L, Z_NULL, 0);
   std::size_t consumed = 0;
   while (consumed < payload.size()) {
@@ -86,8 +88,6 @@ std::uint32_t payload_crc32(const std::vector<std::byte>& payload) {
   }
   return static_cast<std::uint32_t>(checksum);
 }
-
-}  // namespace
 
 Expected<LoadedStoreIndex> load_store_index(
     const std::filesystem::path& store_directory) {
@@ -257,7 +257,7 @@ Expected<std::vector<std::byte>> read_record_payload(
                                  "could not close the data file after reading",
                                  metadata.record_id, metadata.byte_offset, data_path});
   }
-  if (verify_crc && payload_crc32(payload) != metadata.crc32) {
+  if (verify_crc && compute_crc32(payload) != metadata.crc32) {
     payload.clear();
     return unexpected(StoreError{StoreErrorCode::checksum_mismatch,
                                  "record checksum does not match metadata",

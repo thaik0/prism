@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -29,6 +30,7 @@ enum class StoreErrorCode {
   invalid_configuration,
   destination_exists,
   malformed_manifest,
+  count,
 };
 
 struct StoreError {
@@ -47,5 +49,8 @@ inline tl::unexpected<StoreError> unexpected(StoreError error) {
 }
 
 [[nodiscard]] const char* to_string(StoreErrorCode code) noexcept;
+[[nodiscard]] constexpr std::size_t store_error_code_count() noexcept {
+  return static_cast<std::size_t>(StoreErrorCode::count);
+}
 
 }  // namespace prism::storage
