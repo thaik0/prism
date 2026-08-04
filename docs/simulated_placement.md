@@ -203,8 +203,9 @@ They are not confidence intervals, parameter sweeps, or evidence of real storage
 latency; those questions belong to later milestones.
 
 Milestone 5 supplies that multi-configuration qualification. Across its frozen
-36-run sweep, Predictive Greedy's complete test residency matched
-Validation-Final Frozen in 35 runs, and only the zero-promotion-cost seed `31415`
+36-run sweep, the complete test residency of Predictive Greedy (Prism) matched
+Validation-Final Frozen (Prism) in 35 runs, and only the zero-promotion-cost seed
+`31415`
 run changed test targets. The Milestone 4 cost win therefore cannot be read as
 evidence of continued proactive test-time response. See
 `docs/milestone5_results.md` for controls, ablations, paired results, transition

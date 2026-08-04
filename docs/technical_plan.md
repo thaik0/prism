@@ -649,8 +649,9 @@ implement or measure the real tier engine described in later sections.
 
 The completed evaluation freezes one manifest of 12 one-factor-at-a-time
 variants and three fixed seeds. Every engineering-valid run executes the same
-eleven policies: the six Milestone 4 policies, Training-Popularity Static,
-Validation-Final Frozen, and three mechanical forecast ablations. Ablations
+eleven policies: the six Milestone 4 policies, Training-Popularity Static
+(Prism), Validation-Final Frozen (Prism), and three mechanical forecast
+ablations. Ablations
 reuse training-fitted calibration coefficients and never refit. Hidden burst
 truth and oracle demand enter diagnostics only.
 
@@ -662,8 +663,8 @@ scientific failures are retained. Three seeds provide sample summaries, not
 confidence intervals or significance tests.
 
 The full sweep shows that a low-migration result is not evidence of successful
-anticipation. Predictive Greedy remained frozen through test in 35 of 36 runs
-and the fast-predictor contribution was not supported by the deterministic
+anticipation. Predictive Greedy (Prism) remained frozen through test in 35 of 36
+runs and the fast-predictor contribution was not supported by the deterministic
 hypothesis rule. It often beat training-only popularity, demonstrating value in
 the validation-developed learned-factor placement, while positive regret to the
 one-window oracle in every run shows substantial unrealized opportunity. This
@@ -732,8 +733,9 @@ snapshots, and metadata/statistics queries. The public Python package translates
 one stable structured error type and returns detached immutable values.
 
 An independent Python ledger replays native storage semantics and counters. Four
-accepted policy paths—Training-Popularity Static, Predictive Greedy, LRU, and
-LFU—retain their existing Python controller and tie-breaking behavior. Every
+accepted policy paths—Training-Popularity Static (Prism), Predictive Greedy
+(Prism), LRU, and LFU—retain their existing Python controller and tie-breaking
+behavior. Every
 native operation is compared immediately, and divergence invalidates only the
 affected policy without resetting native state.
 

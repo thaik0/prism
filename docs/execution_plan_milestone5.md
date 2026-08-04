@@ -9,10 +9,10 @@ configurations and three fixed seeds. Add only the two required Prism static
 controls, three mechanical forecast ablations, causal diagnostics, sequential
 experiment orchestration, deterministic aggregation, and focused reporting.
 
-Milestone 4 is scientifically qualified: Predictive Greedy made no test-period
-promotions, improved access cost only slightly over Recent-Demand Greedy, and
-derived most of its combined-cost advantage from avoiding migration. Three of
-four training-fitted factor calibrations assigned zero weight to the
+Milestone 4 is scientifically qualified: Predictive Greedy (Prism) made no
+test-period promotions, improved access cost only slightly over Recent-Demand
+Greedy, and derived most of its combined-cost advantage from avoiding migration.
+Three of four training-fitted factor calibrations assigned zero weight to the
 activation/intensity term. Milestone 5 therefore tests whether prediction causes
 useful dynamic behavior rather than assuming that the prior win demonstrated it.
 
@@ -26,9 +26,9 @@ useful dynamic behavior rather than assuming that the prior win demonstrated it.
 3. Reuse the original fitted projection coefficients to construct full,
    recent-state-only, activation/intensity-only, and residual-only forecasts.
    Do not refit any ablation.
-4. Extend chronological replay with Training-Popularity Static and
-   Validation-Final Frozen controls, independent state, pre-window residency,
-   target, and promotion traces for all eleven policies.
+4. Extend chronological replay with Training-Popularity Static (Prism) and
+   Validation-Final Frozen (Prism) controls, independent state, pre-window
+   residency, target, and promotion traces for all eleven policies.
 5. Preserve direct Milestone 3 and 4 CLI behavior. Add only an explicit
    evaluation mode that records scientific gate failures while still rejecting
    engineering-invalid workloads, fits, exact solves, or incomplete artifacts.

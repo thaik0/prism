@@ -1,6 +1,6 @@
 # Prism Project Closeout Execution Plan
 
-**Status:** In progress
+**Status:** Complete
 
 ## Scope
 
@@ -67,3 +67,25 @@ as project history.
   is pinned to one simulator configuration. Neither is production evidence.
 - No post-result tuning, new workload, deployment, benchmark, or Milestone 9
   implementation is part of this closeout.
+
+## Completion evidence
+
+- `python3 -m pytest -q`: 278 passed; the one explicitly opt-in Docker test was
+  skipped in the ordinary suite.
+- `PRISM_RUN_LLM_SIM_INTEGRATION=1 ... python3 -m pytest -q
+  tests/test_llm_sim_integration.py`: 1 passed in 92.27 seconds, exercising two
+  clean six-policy tiny simulator runs.
+- `python3 -m compileall -q src tests` and `python3 -m pip check`: passed.
+- `python3 -m pip install -e .`: built and installed
+  `prism-storage==1.0.0`. The first sandboxed attempt could not reach the package
+  index; the identical command passed with network access.
+- Native Debug, AddressSanitizer, and UndefinedBehaviorSanitizer builds: 29/29
+  tests passed in each configuration.
+- The representative workload, structure, predictor, and simulated-placement
+  path completed through Milestone 4 with all scientific gates passing.
+- The forced Python/native fixture passed all four policy paths with zero
+  mismatches.
+- All 31 Markdown files passed the internal-link check; active Milestone 9
+  language, policy labels, thesis wording, and generated artifacts were audited.
+- `git diff --check` passed before every closeout commit. The release tag is
+  created only after the final commit is pushed and the branch is clean.

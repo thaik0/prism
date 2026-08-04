@@ -2,13 +2,14 @@
 
 ## Why this milestone exists
 
-Milestone 5 showed that Predictive Greedy usually preserved a good placement
-developed during validation, but did not establish continued predictive action.
-It matched Validation-Final Frozen in 35 of 36 test runs, matched
-Recent-State-Only in cost in 34 of 36, and made a test target change in only one
-run. Milestone 5.5 therefore diagnoses the complete path from a moving factor
-forecast to an economically useful proactive record promotion. It is a frozen
-diagnostic experiment, not a new predictor search.
+Milestone 5 showed that Predictive Greedy (Prism) usually preserved a good
+placement developed during validation, but did not establish continued
+predictive action. It matched Validation-Final Frozen (Prism) in 35 of 36 test
+runs, matched Recent-State-Only (Prism ablation) in cost in 34 of 36, and made a
+test target change in only one run. Milestone 5.5 therefore diagnoses the
+complete path from a moving factor forecast to an economically useful proactive
+record promotion. It is a frozen diagnostic experiment, not a new predictor
+search.
 
 ## Frozen experiment
 
@@ -88,10 +89,10 @@ oracle records/accesses, and regret separate poor forecast alignment from a lack
 of opportunity. Hidden burst intervals are opened only for controlled transition
 coverage and promotion timing diagnostics.
 
-A promotion episode begins when Predictive Greedy adds a record during test and
-ends at its eviction or the evaluation boundary. A pre-demand promotion precedes
-its first access by at most `H` windows. Repayment counts only saved slow-read
-cost while resident and compares it with that episode's promotion cost.
+A promotion episode begins when Predictive Greedy (Prism) adds a record during
+test and ends at its eviction or the evaluation boundary. A pre-demand promotion
+precedes its first access by at most `H` windows. Repayment counts only saved
+slow-read cost while resident and compares it with that episode's promotion cost.
 
 ## Precommitted thesis decision
 
@@ -102,8 +103,8 @@ passes only when all four gates pass across its three seeds:
 - Gate A: mean Predictive-versus-Frozen target difference is at least 10%, with
   at least two seeds individually at or above 10%.
 - Gate B: Predictive combined cost is lower than both Validation-Final Frozen
-  and Recent-State-Only in at least two seeds per comparator and in the
-  three-seed mean.
+  (Prism) and Recent-State-Only (Prism ablation) in at least two seeds per
+  comparator and in the three-seed mean.
 - Gate C: Predictive either lowers access cost versus Frozen in at least two
   seeds and in the mean, or improves mean transition coverage by at least 0.05
   with at least two positive seeds.

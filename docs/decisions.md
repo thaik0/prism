@@ -537,9 +537,10 @@ establish real RAM/SSD performance.
 
 Milestone 5 evaluates the frozen Milestone 1--4 pipeline with exactly 12
 one-factor-at-a-time variants, seeds `1729`, `2718`, and `31415`, and eleven
-policies. Training-Popularity Static and Validation-Final Frozen isolate static
-placement value. Recent-State-Only, Activation/Intensity-Only, and
-Residual-Baseline-Only mechanically remove forecast terms while retaining the
+policies. Training-Popularity Static (Prism) and Validation-Final Frozen (Prism)
+isolate static placement value. Recent-State-Only (Prism ablation),
+Activation/Intensity-Only (Prism ablation), and Residual-Baseline-Only (Prism
+ablation) mechanically remove forecast terms while retaining the
 original training-fitted coefficients and deterministic greedy controller.
 
 Engineering validity and scientific outcomes are separate. A valid fit, exact
@@ -551,11 +552,11 @@ significance tests.
 
 **Rationale**
 
-Milestone 4's representative Predictive Greedy result made zero test promotions,
-had only a small hit-rate advantage over Recent-Demand Greedy, and assigned zero
-activation/intensity weight to three of four factors. Static and mechanical
-controls are needed to distinguish a useful validation-developed placement from
-continued predictor-driven anticipation.
+Milestone 4's representative Predictive Greedy (Prism) result made zero test
+promotions, had only a small hit-rate advantage over Recent-Demand Greedy, and
+assigned zero activation/intensity weight to three of four factors. Static and
+mechanical controls are needed to distinguish a useful validation-developed
+placement from continued predictor-driven anticipation.
 
 **Consequences and limitations**
 
@@ -584,8 +585,9 @@ project/package name remain unchanged.
 
 All 27 engineering-valid runs completed reproducibly and the sparse regimes
 separated as intended. In every precommitted candidate cell, Predictive Greedy
-made zero test target changes and matched both Validation-Final Frozen and
-Recent-State-Only exactly. Factor forecasts moved, but a dominant stable residual
+(Prism) made zero test target changes and matched both Validation-Final Frozen
+(Prism) and Recent-State-Only (Prism ablation) exactly. Factor forecasts moved,
+but a dominant stable residual
 record baseline, stable ranking, promotion cost, and byte competition prevented
 action. All candidates therefore failed all four precommitted gates.
 

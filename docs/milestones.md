@@ -237,7 +237,8 @@ Determine when Prism wins, when it loses, and which components cause remaining r
 - one frozen 12-variant manifest covering capacity, promotion cost, noise,
   burst duration, and context reliability;
 - three repeated fixed-seed trials per variant;
-- Training-Popularity Static and Validation-Final Frozen controls;
+- Training-Popularity Static (Prism) and Validation-Final Frozen (Prism)
+  controls;
 - recent-state, activation/intensity, and residual-only forecast ablations;
 - dynamic-action and hidden-truth-only pre-transition diagnostics;
 - paired seed comparisons and descriptive sample uncertainty;
@@ -258,10 +259,11 @@ byte-identical. The sweep records earlier scientific gates as outcomes rather
 than filtering runs.
 
 The principal conclusion is unfavorable to the dynamic-value hypothesis:
-Predictive Greedy was behaviorally identical to Validation-Final Frozen in 35
-of 36 runs and its total cost was identical to Recent-State-Only in 34 of 36.
-It beat Training-Popularity Static in a majority of seeds for 9 variants, but
-that advantage usually came from a better validation-developed static target.
+Predictive Greedy (Prism) was behaviorally identical to Validation-Final Frozen
+(Prism) in 35 of 36 runs and its total cost was identical to Recent-State-Only
+(Prism ablation) in 34 of 36. It beat Training-Popularity Static (Prism) in a
+majority of seeds for 9 variants, but that advantage usually came from a better
+validation-developed static target.
 Only `promotion_0__seed_31415` changed test targets; it reduced cost by `243`
 relative to frozen while slightly reducing mean pre-transition realized-demand
 coverage. Oracle regret remained positive in every run, so predictive opportunity
@@ -364,7 +366,8 @@ synchronous operation-level execution parity.
 - native builder input from deterministic Python-supplied immutable bytes;
 - structured native errors and immutable operation results;
 - independent Python expected-state ledger;
-- exact parity for Training-Popularity Static, Predictive Greedy, LRU, and LFU;
+- exact parity for Training-Popularity Static (Prism), Predictive Greedy (Prism),
+  LRU, and LFU;
 - forced dynamic fixtures and an accepted seed-1729 representative run;
 - deterministic store, manifest, JSONL operation, and JSON report artifacts;
 - editable and wheel installation tests.
