@@ -1,0 +1,3 @@
+[submodule "third_party/LLMServingSim"]
+	path = third_party/LLMServingSim
+	url = https://github.com/casys-kaist/LLMServingSim.git

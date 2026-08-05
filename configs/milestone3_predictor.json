@@ -1,0 +1,9 @@
+{
+  "activation_max_iter": 1000,
+  "activation_tolerance": 1e-06,
+  "calibration_bins": 10,
+  "fit_seed": 31415,
+  "intensity_ridge_alpha": 1.0,
+  "train_fraction": 0.6,
+  "validation_fraction": 0.2
+}

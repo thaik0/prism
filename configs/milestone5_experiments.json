@@ -1,0 +1,57 @@
+{
+  "base_simulation_settings": {
+    "capacity_fraction": 0.25,
+    "fast_read_cost": 1.0,
+    "promotion_saved_read_equivalents": 2.0,
+    "slow_read_cost": 10.0
+  },
+  "base_workload_config": "configs/milestone3_predictor_workload.json",
+  "expected_total_run_count": 36,
+  "expected_unique_variant_count": 12,
+  "experiment_id_format": "<variant_id>__seed_<seed>",
+  "policy_order": [
+    {"display_name": "LRU", "id": "lru"},
+    {"display_name": "LFU", "id": "lfu"},
+    {"display_name": "Recent-Demand Greedy", "id": "recent_demand_greedy"},
+    {"display_name": "Predictive Greedy (Prism)", "id": "predictive_greedy"},
+    {"display_name": "Training-Popularity Static (Prism)", "id": "training_popularity_static"},
+    {"display_name": "Validation-Final Frozen (Prism)", "id": "validation_final_frozen"},
+    {"display_name": "Recent-State-Only (Prism ablation)", "id": "recent_state_only"},
+    {"display_name": "Activation/Intensity-Only (Prism ablation)", "id": "activation_intensity_only"},
+    {"display_name": "Residual-Baseline-Only (Prism ablation)", "id": "residual_baseline_only"},
+    {"display_name": "Oracle Greedy", "id": "oracle_greedy"},
+    {"display_name": "Oracle Exact", "id": "oracle_exact"}
+  ],
+  "predictor_config": "configs/milestone3_predictor.json",
+  "schema_version": 1,
+  "seeds": [1729, 2718, 31415],
+  "structure_config": "configs/milestone2_representative.json",
+  "variant_order": [
+    "baseline",
+    "capacity_10",
+    "capacity_40",
+    "promotion_0",
+    "promotion_1",
+    "promotion_4",
+    "noise_low",
+    "noise_high",
+    "burst_short",
+    "burst_long",
+    "context_strong",
+    "context_weak"
+  ],
+  "variants": [
+    {"capacity_fraction": 0.25, "family": "baseline", "id": "baseline", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {}},
+    {"capacity_fraction": 0.10, "family": "capacity", "id": "capacity_10", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {}},
+    {"capacity_fraction": 0.40, "family": "capacity", "id": "capacity_40", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {}},
+    {"capacity_fraction": 0.25, "family": "promotion", "id": "promotion_0", "promotion_saved_read_equivalents": 0.0, "workload_overrides": {}},
+    {"capacity_fraction": 0.25, "family": "promotion", "id": "promotion_1", "promotion_saved_read_equivalents": 1.0, "workload_overrides": {}},
+    {"capacity_fraction": 0.25, "family": "promotion", "id": "promotion_4", "promotion_saved_read_equivalents": 4.0, "workload_overrides": {}},
+    {"capacity_fraction": 0.25, "family": "noise", "id": "noise_low", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {"noise_access_weight": 0.175}},
+    {"capacity_fraction": 0.25, "family": "noise", "id": "noise_high", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {"noise_access_weight": 0.7}},
+    {"capacity_fraction": 0.25, "family": "duration", "id": "burst_short", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {"burst_duration_max_windows": 2, "burst_duration_min_windows": 1}},
+    {"capacity_fraction": 0.25, "family": "duration", "id": "burst_long", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {"burst_duration_max_windows": 10, "burst_duration_min_windows": 4}},
+    {"capacity_fraction": 0.25, "family": "context", "id": "context_strong", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {"precursor_probability_scale": 0.6875, "spontaneous_activation_probability": 0.04}},
+    {"capacity_fraction": 0.25, "family": "context", "id": "context_weak", "promotion_saved_read_equivalents": 2.0, "workload_overrides": {"precursor_probability_scale": 0.41250000000000003, "spontaneous_activation_probability": 0.16}}
+  ]
+}

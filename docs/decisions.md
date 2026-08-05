@@ -2,6 +2,12 @@
 
 This document records design decisions that are currently considered settled.
 
+Entries D001--D024 preserve the decisions made while testing the original
+predictive-actionability hypothesis. When prospective wording in those entries
+conflicts with later evidence, D025--D029 and the final report govern the closed
+project. Earlier decisions remain visible so the revised thesis is not presented
+as the original plan.
+
 It is not a general planning document. Each entry should describe:
 
 - the decision,
@@ -110,13 +116,14 @@ Strict clustering would lose this structure.
 
 ## D006 — Initial slow learner family
 
-**Status:** Provisional
+**Status:** Accepted
 
 **Decision**
 
-The first slow learner should use a simple interpretable matrix-factorization approach, likely nonnegative factorization.
-
-The exact algorithm will be selected during the slow-learner milestone.
+The first slow learner uses one deterministic scikit-learn nonnegative matrix
+factorization of raw window-by-record access counts. The controlled experiment
+supplies the planted factor count and uses fixed NNDSVDa initialization,
+coordinate descent, and Frobenius loss.
 
 **Rationale**
 
@@ -127,7 +134,8 @@ Factorization naturally represents:
 - overlapping demand patterns,
 - a compact latent dimension.
 
-More complex graph or neural approaches are postponed until a simple model exposes a concrete limitation.
+More complex preprocessing, model selection, graph, or neural approaches are
+postponed until this measured baseline exposes a concrete limitation.
 
 ---
 
@@ -454,3 +462,282 @@ The following are postponed unless evidence justifies them:
 **Rationale**
 
 The project’s value comes from testing the predictive-tiering thesis, not from maximizing the number of technologies used.
+
+---
+
+## D022 — Initial fast predictor baseline
+
+**Status:** Accepted
+
+**Decision**
+
+The first fast predictor uses one-window chronological targets, training-only
+frozen NMF memberships, per-factor constant baselines, two shared fixed logistic
+regressions, and one shared fixed ridge regression. Context is represented by
+factor-specific user and request-type fraction blocks. Hidden simulator truth is
+limited to controlled matching, labels, and evaluation.
+
+**Rationale**
+
+Fixed linear models directly test whether recent learned-factor demand predicts
+transitions and whether observable context adds signal without model selection or
+test-driven complexity. Separating activation probability from conditional
+intensity preserves the accepted forecasting contract and makes calibration and
+error sources auditable.
+
+**Consequences and limitations**
+
+The controlled labels are not available for real traces, and the current model
+does not use session history, operation type, multiple horizons, online updates,
+neural architectures, record-level projection, or placement. Those capabilities
+remain deferred until a later milestone or measured limitation justifies them.
+
+---
+
+## D023 — Controlled simulated placement experiment
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 4 uses one deterministic two-tier cost simulation with a byte capacity
+equal to one quarter of the representative trace's total record bytes, fixed
+fast/slow read costs of `1.0` and `10.0`, and a median-record promotion cost equal
+to two saved slow reads. It compares exactly LRU, LFU, recent-demand greedy,
+predictive greedy, one-window oracle greedy, and one-window oracle exact.
+
+Projection calibration is fit on training windows only. Policies begin validation
+empty, carry independent state into test, and replay identical observable events.
+Greedy and exact controllers share expected access savings minus promotion cost;
+ML does not select placement actions.
+
+**Rationale**
+
+One frozen configuration prevents test-driven storage-cost tuning. Validation
+warm-up avoids an artificial synchronized cold start at the primary test
+boundary. The recent-demand comparison isolates predictive value while holding
+the deterministic controller fixed; reactive and oracle policies expose other
+important baselines and available opportunity.
+
+**Consequences and limitations**
+
+The oracle sees only current-window demand and is not a full-horizon optimum.
+Independent myopic trajectories can affect ordering. Simulated tier costs omit
+prediction CPU time, queues, contention, concurrency, real migration timing,
+filesystem behavior, and wall-clock latency. These controlled results do not
+establish real RAM/SSD performance.
+
+---
+
+## D024 — Frozen causal evaluation of predictive placement
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 5 evaluates the frozen Milestone 1--4 pipeline with exactly 12
+one-factor-at-a-time variants, seeds `1729`, `2718`, and `31415`, and eleven
+policies. Training-Popularity Static (Prism) and Validation-Final Frozen (Prism)
+isolate static placement value. Recent-State-Only (Prism ablation),
+Activation/Intensity-Only (Prism ablation), and Residual-Baseline-Only (Prism
+ablation) mechanically remove forecast terms while retaining the
+original training-fitted coefficients and deterministic greedy controller.
+
+Engineering validity and scientific outcomes are separate. A valid fit, exact
+solve, and complete artifact set produces a completed run even when an earlier
+scientific gate fails. Aggregation retains seed-level paired differences and
+uses deterministic `supported`, `mixed`, `not_supported`, or
+`insufficient_data` rules. Three seeds do not justify confidence intervals or
+significance tests.
+
+**Rationale**
+
+Milestone 4's representative Predictive Greedy (Prism) result made zero test
+promotions, had only a small hit-rate advantage over Recent-Demand Greedy, and
+assigned zero activation/intensity weight to three of four factors. Static and
+mechanical controls are needed to distinguish a useful validation-developed
+placement from continued predictor-driven anticipation.
+
+**Consequences and limitations**
+
+The completed sweep does not support dynamic value or fast-predictor contribution:
+35 of 36 runs exactly matched the frozen test residency, while only
+`promotion_0__seed_31415` acted dynamically. The full policy still often beat
+training-only popularity and always had positive regret to Oracle Greedy. These
+findings motivate future investigation but do not change the model, feature set,
+projection, objective, policy set, or storage implementation in this milestone.
+
+---
+
+## D025 — Reframe Prism around stable cost-aware tiering
+
+**Status:** Accepted
+
+**Decision**
+
+Following the frozen Milestone 5.5 diagnosis, Prism's supported thesis is learned
+latent-demand structure for stable, cost-aware storage tiering. The current fast
+activation/intensity predictor remains a separable research component, but is not
+claimed to cause useful dynamic placement. The deterministic controller and the
+project/package name remain unchanged.
+
+**Rationale**
+
+All 27 engineering-valid runs completed reproducibly and the sparse regimes
+separated as intended. In every precommitted candidate cell, Predictive Greedy
+(Prism) made zero test target changes and matched both Validation-Final Frozen
+(Prism) and Recent-State-Only (Prism ablation) exactly. Factor forecasts moved,
+but a dominant stable residual
+record baseline, stable ranking, promotion cost, and byte competition prevented
+action. All candidates therefore failed all four precommitted gates.
+
+**Consequences and limitations**
+
+No post-result feature, model, parameter, threshold, seed, horizon, or regime
+search is authorized by this decision. Real storage remains deferred, so the
+evidence concerns deterministic simulated costs rather than measured latency.
+Positive oracle regret preserves a future research question, but not a claim of
+demonstrated dynamic predictive tiering.
+
+---
+
+## D026 — Policy-agnostic native immutable two-tier engine
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 6 uses a standalone C++17 engine with one deterministic FlatBuffers
+version-1 `PRSM` index, zlib CRC32 per immutable payload, a read-only `pread`
+slow tier, and explicitly owned in-memory fast buffers. Placement callers supply
+complete exact target sets. The engine performs no ranking, admission, or victim
+selection.
+
+Target transitions verify and retain all incoming payloads and construct the
+complete next state before one no-throw swap. Runtime failures use pinned
+`tl::expected` structured results. Build, inspection, logical counters, snapshots,
+and replay artifacts are deterministic; timing is excluded from canonical output.
+
+**Rationale**
+
+This isolates systems correctness from the unsupported dynamic-prediction claim
+and lets future deterministic policies execute against real file bytes and owned
+memory without policy behavior leaking into storage. FlatBuffers, zlib,
+nlohmann/json, CLI11, tl::expected, and Catch2 avoid custom serialization,
+checksum, parser, result, CLI, and test infrastructure.
+
+**Consequences and limitations**
+
+The directory rename is atomically visible on one supported filesystem but not a
+crash-durable transaction. macOS and Linux are supported; Windows, writes,
+concurrency, asynchronous I/O, memory mapping, direct I/O, Python bindings,
+policies, and wall-clock performance claims are deferred.
+
+---
+
+## D027 — Synchronous Python/native semantic parity boundary
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 7 uses one private `prism._native` pybind11 extension linked to the
+existing C++ storage target and one public `prism.native` wrapper. Python owns
+all forecasting and deterministic policy decisions. C++ owns authoritative
+bytes, residency, integrity, movement, exact targets, and logical counters.
+
+Parity uses an independent Python ledger and compares every operation result,
+error code, payload digest, tier, snapshot, capacity value, and counter. The
+first mismatch invalidates only that policy and stops further native calls for
+it. Canonical artifacts contain no timing or payload bodies.
+
+**Rationale**
+
+A synchronous, auditable boundary is the smallest complete step that can prove
+the simulator's accepted placement decisions execute with identical storage
+semantics. It isolates integration correctness before concurrency or performance
+work and preserves the Milestone 5.5 stable cost-aware thesis.
+
+**Consequences and limitations**
+
+Payloads are copied into Python, the GIL remains held, and there is no worker,
+callback, batching, background migration, or latency claim. The accepted
+representative predictive placement remains stable; forced fixtures establish
+dynamic path coverage but do not constitute new scientific actionability
+evidence.
+
+---
+
+## D028 — Simulator-owned execution with a reusable-prefix placement hook
+
+**Status:** Accepted
+
+**Decision**
+
+Milestone 8 pins LLMServingSim commit
+`2c2042ce4bf1b0283ebeed1db95db6f25e3e7511` and leaves request arrivals,
+batching, routing, active-request KV, prefix matching, transfer, recomputation,
+and execution timing authoritative in that simulator. Prism may select only a
+prefix-closed target of eligible, lock-free reusable GPU prefix pages within the
+pre-resolved 9,861-block budget. Native LRU runs with no target intervention.
+
+The upstream patch adds an optional configuration argument and lifecycle
+callbacks: load the hook, notify it immediately before and after request reveal,
+report completions and scheduled batches, apply placement after lifecycle
+events, and finalize artifacts. Deployable Prism policies process completions
+before same-cycle arrival routing so request `r` is decided from information
+through `r-1`. The patch does not touch scheduler, memory, ASTRA-Sim, profiling,
+or model-execution source.
+
+**Rationale**
+
+The pinned revision has no supported external prefix-policy interface. The
+isolated callback patch is the narrowest boundary that retains native simulator
+timing while allowing deterministic control of unpinned reusable pages. A
+hook-disabled behavioral test and an exact unmodified-upstream smoke run protect
+the native baseline.
+
+**Consequences and limitations**
+
+The adapter uses the pinned radix cache's private leaf-deletion and removal-event
+methods because there is no exact public target API. This makes the integration
+revision-specific. Host-to-GPU promotion remains demand-coupled through native
+prefix matching rather than being synthesized by Prism. Results apply only to
+the frozen Llama-3.1-8B/RTXPRO6000/ShareGPT simulator configuration and do not
+constitute real-hardware performance evidence. The Milestone 7 native store is
+not used, so residency and transfer are modeled exactly once.
+
+---
+
+## D029 — Close the project after Milestone 8
+
+**Status:** Accepted
+
+**Decision**
+
+Prism closes as a completed reproducible research project with the thesis:
+
+> **Prism learns latent-demand structure and uses it for stable, cost-aware
+> storage tiering.**
+
+Milestone 9, the planned real heterogeneous deployment, is intentionally
+canceled. The `v1.0.0` release contains no new model, policy, experiment,
+deployment, or production claim.
+
+**Rationale**
+
+Milestone 5.5's precommitted sparse and longer-horizon cells all failed the
+actionability gates. Milestone 8 preserved that result: five non-Oracle policies
+had identical TTFT and recomputation in the pinned simulator, while Oracle added
+transfer traffic and was slightly slower. A hardware deployment would add
+substantial concurrency and transfer complexity without a supported dynamic
+placement effect to validate.
+
+**Consequences and limitations**
+
+The original hypothesis, former Milestone 9 plan, and negative results remain in
+the documentation as history. Future research directions are described as open
+questions, not an active roadmap. The release certifies reproducibility,
+controlled scientific evidence, native storage correctness, semantic parity,
+and one pinned simulator integration; it is not production-ready and makes no
+real-hardware performance claim.

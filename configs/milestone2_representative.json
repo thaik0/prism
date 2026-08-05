@@ -1,0 +1,6 @@
+{
+  "fit_seed": 2718,
+  "max_iter": 1000,
+  "n_components": 4,
+  "tolerance": 0.0001
+}

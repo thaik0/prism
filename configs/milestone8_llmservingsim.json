@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "upstream_root": "third_party/LLMServingSim",
+  "upstream_repository": "https://github.com/casys-kaist/LLMServingSim.git",
+  "upstream_commit": "2c2042ce4bf1b0283ebeed1db95db6f25e3e7511",
+  "upstream_release": "v1.1.0-53-g2c2042c",
+  "astra_sim_commit": "f82fb3d861614a2a61febfaf87a1360db05efd81",
+  "cluster_config": "configs/cluster/single_node_single_instance.json",
+  "model": "meta-llama/Llama-3.1-8B",
+  "hardware": "RTXPRO6000",
+  "dtype": "bfloat16",
+  "kv_cache_dtype": "auto",
+  "block_size_tokens": 16,
+  "full_trace": "workloads/sharegpt-llama-3.1-8b-300-sps10.jsonl",
+  "tiny_trace": "workloads/example_trace.jsonl",
+  "full_split": {
+    "training_end": 180,
+    "validation_end": 240,
+    "request_count": 300
+  },
+  "tiny_split": {
+    "training_end": 6,
+    "validation_end": 8,
+    "request_count": 10
+  },
+  "active_request_reservation_blocks": 2048,
+  "reusable_gpu_fraction": 0.25,
+  "structure_components": 4,
+  "seed": 1729,
+  "fast_read_cost": 1.0,
+  "slow_read_cost": 10.0,
+  "promotion_cost_per_byte": 0.00000858306884765625,
+  "anonymous_user": "anonymous",
+  "request_type": "llm_request",
+  "policy_ids": [
+    "llmservingsim_lru",
+    "lfu",
+    "training_popularity_static_prism",
+    "validation_final_frozen_prism",
+    "predictive_greedy_prism",
+    "oracle_greedy"
+  ]
+}

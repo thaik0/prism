@@ -1,0 +1,7 @@
+{"sequence":1,"operation":"read","record_id":1,"expected":{"success":true,"read_tier":"slow","bytes":6,"resident_record_ids":[]}}
+{"sequence":2,"operation":"promote","record_id":1,"expected":{"success":true,"resident_record_ids":[1]}}
+{"sequence":3,"operation":"read","record_id":1,"expected":{"success":true,"read_tier":"fast","bytes":6}}
+{"sequence":4,"operation":"apply_target_set","record_ids":[3,2],"expected":{"success":true,"resident_record_ids":[2,3]}}
+{"sequence":5,"operation":"evict","record_id":2,"expected":{"success":true,"resident_record_ids":[3]}}
+{"sequence":6,"operation":"promote","record_id":99,"expected":{"success":false,"error_code":"unknown_record","resident_record_ids":[3]}}
+{"sequence":7,"operation":"snapshot","expected":{"success":true,"resident_record_ids":[3]}}

@@ -1,0 +1,92 @@
+{
+  "base_simulation_settings": {
+    "capacity_fraction": 0.25,
+    "fast_read_cost": 1.0,
+    "promotion_saved_read_equivalents": 2.0,
+    "slow_read_cost": 10.0
+  },
+  "base_workload_config": "configs/milestone3_predictor_workload.json",
+  "common_eligible_window_protocol": {
+    "final_excluded_tail_windows": [997, 1000],
+    "h_max": 4,
+    "test_evaluation_windows": [800, 997],
+    "test_start": 800,
+    "trace_end": 1000,
+    "train_end": 600,
+    "validation_carry_only_windows": [797, 800],
+    "validation_end": 800,
+    "validation_evaluation_windows": [600, 797],
+    "validation_start": 600
+  },
+  "expected_total_run_count": 27,
+  "experiment_id_format": "<regime>__h<horizon>__seed_<seed>",
+  "horizons": [1, 2, 4],
+  "policy_order": [
+    {"display_name": "LRU", "id": "lru"},
+    {"display_name": "LFU", "id": "lfu"},
+    {"display_name": "Recent-Demand Greedy", "id": "recent_demand_greedy"},
+    {"display_name": "Predictive Greedy (Prism)", "id": "predictive_greedy"},
+    {"display_name": "Training-Popularity Static (Prism)", "id": "training_popularity_static"},
+    {"display_name": "Validation-Final Frozen (Prism)", "id": "validation_final_frozen"},
+    {"display_name": "Recent-State-Only (Prism ablation)", "id": "recent_state_only"},
+    {"display_name": "Activation/Intensity-Only (Prism ablation)", "id": "activation_intensity_only"},
+    {"display_name": "Residual-Baseline-Only (Prism ablation)", "id": "residual_baseline_only"},
+    {"display_name": "Oracle Greedy", "id": "oracle_greedy"},
+    {"display_name": "Oracle Exact", "id": "oracle_exact"}
+  ],
+  "predictor_config": "configs/milestone3_predictor.json",
+  "regime_order": ["baseline", "sparse", "very_sparse"],
+  "regimes": [
+    {
+      "field_diffs_from_baseline": {},
+      "id": "baseline",
+      "workload_overrides": {
+        "post_burst_cooldown_windows": 0,
+        "precursor_probability_scale": 0.55,
+        "spontaneous_activation_probability": 0.08
+      }
+    },
+    {
+      "field_diffs_from_baseline": {
+        "post_burst_cooldown_windows": {"baseline": 0, "resolved": 5},
+        "precursor_probability_scale": {"baseline": 0.55, "resolved": 0.275},
+        "spontaneous_activation_probability": {"baseline": 0.08, "resolved": 0.04}
+      },
+      "id": "sparse",
+      "workload_overrides": {
+        "post_burst_cooldown_windows": 5,
+        "precursor_probability_scale": 0.275,
+        "spontaneous_activation_probability": 0.04
+      }
+    },
+    {
+      "field_diffs_from_baseline": {
+        "post_burst_cooldown_windows": {"baseline": 0, "resolved": 10},
+        "precursor_probability_scale": {"baseline": 0.55, "resolved": 0.1375},
+        "spontaneous_activation_probability": {"baseline": 0.08, "resolved": 0.02}
+      },
+      "id": "very_sparse",
+      "workload_overrides": {
+        "post_burst_cooldown_windows": 10,
+        "precursor_probability_scale": 0.1375,
+        "spontaneous_activation_probability": 0.02
+      }
+    }
+  ],
+  "schema_version": 2,
+  "seeds": [1729, 2718, 31415],
+  "structure_config": "configs/milestone2_representative.json",
+  "thesis_candidate_cells": ["sparse__h2", "sparse__h4", "very_sparse__h2", "very_sparse__h4"],
+  "thesis_gate_thresholds": {
+    "gate_a_mean_difference_fraction_minimum": 0.1,
+    "gate_a_minimum_passing_seed_count": 2,
+    "gate_a_seed_difference_fraction_minimum": 0.1,
+    "gate_b_minimum_seed_win_count": 2,
+    "gate_c_minimum_seed_win_count": 2,
+    "gate_c_transition_coverage_absolute_improvement_minimum": 0.05,
+    "gate_d_aggregate_net_value_strictly_positive": true,
+    "gate_d_minimum_pre_demand_promotions": 10,
+    "gate_d_minimum_repayment_fraction": 0.5,
+    "numerical_tolerance": 1e-9
+  }
+}

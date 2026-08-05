@@ -1,0 +1,6 @@
+{
+  "fast_capacity_bytes": 154728,
+  "fast_read_cost": 1.0,
+  "promotion_cost_per_byte": 0.0017976630380505342,
+  "slow_read_cost": 10.0
+}

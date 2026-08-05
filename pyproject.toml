@@ -1,0 +1,32 @@
+[build-system]
+requires = [
+    "scikit-build-core==0.11.6",
+    "pybind11==3.0.4",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "prism-storage"
+version = "1.0.0"
+description = "Predictive storage-tiering research system"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "scikit-learn",
+    "scipy",
+]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.source-dir = "cpp"
+build-dir = "build/{wheel_tag}/{state}"
+wheel.packages = ["src/prism"]
+
+[tool.scikit-build.cmake.define]
+PRISM_BUILD_PYTHON_BINDINGS = "ON"
+PRISM_BUILD_TESTS = "OFF"
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = [".", "src"]
+testpaths = ["tests"]

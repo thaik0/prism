@@ -2,8 +2,14 @@
 
 ## Current status
 
-**Current milestone:** Milestone 1 — Controlled Workload Generator  
-**Project stage:** Planning complete; implementation not yet started
+**Current milestone:** None — project complete
+
+**Project stage:** Milestones 0--8 complete; Milestone 9 intentionally canceled
+
+Prism closed after Milestone 8 with the evidence-supported thesis that learned
+latent-demand structure can support stable, cost-aware tiering. The planned real
+heterogeneous deployment did not have a supported dynamic-actionability claim to
+validate, so it was canceled rather than implemented speculatively.
 
 A milestone is complete only when:
 
@@ -18,7 +24,7 @@ A milestone is complete only when:
 
 # Milestone 0 — Repository Foundation
 
-**Status:** In progress
+**Status:** Complete
 
 ## Objective
 
@@ -45,7 +51,7 @@ Create the minimal repository structure and instructions required for reliable m
 
 # Milestone 1 — Controlled Workload Generator
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -96,7 +102,7 @@ Generate reproducible access traces containing hidden fuzzy working sets, abrupt
 
 # Milestone 2 — Demand Windows and Slow Working-Set Learner
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -104,14 +110,14 @@ Transform access traces into demand matrices and learn fuzzy latent working sets
 
 ## Required capabilities
 
-- configurable demand windows;
-- raw and normalized demand features;
-- simple factorization baseline;
+- raw per-window, per-record access counts;
+- one fixed deterministic NMF baseline;
 - fuzzy record memberships;
 - factor activation history;
 - comparison with planted simulator truth;
 - factor matching despite label permutation;
-- reconstruction and recovery metrics.
+- fuzzy, support, reconstruction, and activation-alignment metrics;
+- deterministic four-artifact persistence.
 
 ## Explicit non-goals
 
@@ -124,18 +130,22 @@ Transform access traces into demand matrices and learn fuzzy latent working sets
 
 ## Completion gate
 
-- Demand-window construction is deterministic and tested.
-- The learner recovers planted structure under at least one controlled easy configuration.
-- Failure behavior under overlap and noise is measured.
-- Hidden truth is used only for evaluation.
-- Factor labels are matched correctly before structural comparison.
-- Results are reproducible across seeds.
+- Raw demand-window construction is deterministic and tested.
+- The representative learner converges and recovers support above analytic chance.
+- Hidden truth is used only after fitting for controlled evaluation.
+- Factor labels are matched with globally optimal one-to-one assignment.
+- Repeated identical runs produce byte-identical artifacts.
+- Non-convergence is persisted and reported as a nonzero CLI result.
 
 ---
 
 # Milestone 3 — Fast Activation and Intensity Predictor
 
-**Status:** Not started
+**Status:** Complete
+
+**Prerequisite status:** Complete. The dedicated longer controlled trace plants
+and scientifically validates stochastic context-informed burst intensity while
+preserving the Milestone 1 and Milestone 2 contracts.
 
 ## Objective
 
@@ -144,10 +154,10 @@ Predict near-future working-set activation probability and conditional intensity
 ## Required capabilities
 
 - model-visible contextual feature construction;
-- one fixed configurable prediction horizon;
+- one fixed one-window prediction horizon;
 - activation targets;
 - conditional intensity targets;
-- simple PyTorch model or models;
+- fixed scikit-learn logistic and ridge models;
 - train/validation/test splitting that avoids leakage;
 - activation evaluation;
 - intensity evaluation;
@@ -170,12 +180,15 @@ Predict near-future working-set activation probability and conditional intensity
 - Intensity errors are analyzed separately.
 - Removing context materially affects performance when the workload is configured to contain contextual signal.
 - No hidden simulator variables enter model inputs.
+- NMF, preprocessing, and supervised models are fit only on training populations.
+- All three strict untouched-test scientific gates pass on the dedicated trace.
+- Repeated complete runs produce byte-identical four-artifact outputs.
 
 ---
 
 # Milestone 4 — Simulated Predictive Placement
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -188,10 +201,10 @@ Convert forecasts into record-level demand estimates and compare predictive plac
 - expected-latency benefit calculation;
 - greedy predictive controller;
 - LRU baseline;
-- LFU or TinyLFU-style baseline;
-- size/cost-aware reactive baseline;
+- LFU baseline;
+- recent-demand size/cost-aware greedy baseline;
 - exact controller for small cases;
-- oracle future-demand controller;
+- one-window oracle greedy and exact controllers;
 - frozen-trace policy replay.
 
 ## Completion gate
@@ -202,11 +215,18 @@ Convert forecasts into record-level demand estimates and compare predictive plac
 - At least one predictable abrupt-burst workload shows an opportunity for predictive improvement.
 - Random or uninformative workloads expose prediction overhead rather than artificial gains.
 
+The representative 1,000-window trace passes all five fixed scientific gates.
+Predictive greedy reduces test combined cost relative to recent-demand greedy,
+LRU, and LFU; it also reduces unique burst-start-window combined cost relative
+to recent-demand greedy. One-window oracle greedy demonstrates opportunity, and
+one-window oracle exact is no worse than oracle greedy. These are controlled
+simulated-cost results, not measured storage latency.
+
 ---
 
 # Milestone 5 — Rigorous Evaluation and Error Analysis
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -214,15 +234,17 @@ Determine when Prism wins, when it loses, and which components cause remaining r
 
 ## Required capabilities
 
-- parameter sweeps over overlap, noise, context reliability, burst properties, scale, and capacity;
-- repeated seeded trials;
-- confidence intervals or uncertainty summaries;
-- calibration plots;
-- structural-recovery analysis;
-- activation and intensity error analysis;
-- system-weighted error analysis;
-- component oracle substitution;
-- exact-versus-greedy comparison.
+- one frozen 12-variant manifest covering capacity, promotion cost, noise,
+  burst duration, and context reliability;
+- three repeated fixed-seed trials per variant;
+- Training-Popularity Static (Prism) and Validation-Final Frozen (Prism)
+  controls;
+- recent-state, activation/intensity, and residual-only forecast ablations;
+- dynamic-action and hidden-truth-only pre-transition diagnostics;
+- paired seed comparisons and descriptive sample uncertainty;
+- behavioral and fixed-trajectory migration-cost analysis;
+- structure, predictor, projection, placement, and oracle-regret diagnostics;
+- deterministic reports, resume validation, and byte-identical full sweeps.
 
 ## Completion gate
 
@@ -231,11 +253,56 @@ Determine when Prism wins, when it loses, and which components cause remaining r
 - Important failures can be traced to slow learner, fast predictor, controller, migration cost, or lack of workload opportunity.
 - No result is reported from one favorable seed alone.
 
+The committed manifest fixes 12 variants and seeds `1729`, `2718`, and `31415`.
+All 36 engineering-valid runs completed twice and the two experiment roots were
+byte-identical. The sweep records earlier scientific gates as outcomes rather
+than filtering runs.
+
+The principal conclusion is unfavorable to the dynamic-value hypothesis:
+Predictive Greedy (Prism) was behaviorally identical to Validation-Final Frozen
+(Prism) in 35 of 36 runs and its total cost was identical to Recent-State-Only
+(Prism ablation) in 34 of 36. It beat Training-Popularity Static (Prism) in a
+majority of seeds for 9 variants, but that advantage usually came from a better
+validation-developed static target.
+Only `promotion_0__seed_31415` changed test targets; it reduced cost by `243`
+relative to frozen while slightly reducing mean pre-transition realized-demand
+coverage. Oracle regret remained positive in every run, so predictive opportunity
+still exists. Full results and limitations are in `docs/milestone5_results.md`.
+
+---
+
+# Milestone 5.5 — Predictive Actionability Diagnosis
+
+**Status:** Complete
+
+## Objective
+
+Determine whether the frozen predictor-to-controller architecture becomes
+dynamically actionable under sparse activation regimes and matched cumulative
+horizons, or whether Prism's supported thesis must be narrowed.
+
+## Completion evidence
+
+- A frozen 3-regime by 3-horizon by 3-seed manifest completed all 27 runs.
+- Sparse and very-sparse regimes showed strictly fewer starts, less simultaneous
+  activity, and longer dormant intervals in three-seed aggregate.
+- Common eligible windows, cumulative labels/baselines, rolling placement,
+  factor-to-record decomposition, controller rejection, matched oracle, and
+  promotion repayment were persisted deterministically.
+- Two complete roots were byte-identical and resume reused all 27 hash-validated
+  runs.
+- All four candidate cells failed Gates A--D without post-result tuning.
+
+The final status is `stable_cost_aware_tiering_reframe`. The current evidence
+supports learned latent-demand structure for stable, cost-aware tiering, but not
+useful dynamic predictive tiering from the current fast forecast. This result
+does not begin a predictor search or real-storage implementation.
+
 ---
 
 # Milestone 6 — C++ RAM/SSD Tiering Engine
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
@@ -249,9 +316,10 @@ Build a real two-tier record engine using process RAM and a simple file-backed l
 - metadata index;
 - real file reads;
 - promotion and eviction;
-- baseline policies;
-- deterministic controller interface;
-- timing and instrumentation;
+- policy-agnostic deterministic exact-target interface;
+- deterministic logical instrumentation;
+- structured corruption and I/O errors;
+- deterministic inspection and JSONL replay;
 - C++ unit tests;
 - CMake build.
 
@@ -270,55 +338,74 @@ Build a real two-tier record engine using process RAM and a simple file-backed l
 - Capacity invariants hold for variable-sized records.
 - Eviction never loses authoritative data.
 - Reads return correct bytes.
-- Real latency and movement metrics are captured.
-- Baseline policy behavior is tested.
-- The engine can replay a representative trace independently of Python ML.
+- Logical read and movement metrics are captured deterministically.
+- Failed target transitions preserve exact prior residency.
+- Every slow-tier and migration read verifies CRC32.
+- Builder, inspection, and replay outputs are deterministic.
+- The engine replays a representative trace independently of Python ML.
+- Debug, AddressSanitizer, UndefinedBehaviorSanitizer, and Python regressions pass.
+
+Milestone 6 deliberately contains no placement policy. The attached milestone
+brief superseded the older baseline-policy wording: policies supply exact targets
+in a later integration milestone. No wall-clock performance claim is made.
 
 ---
 
 # Milestone 7 — Python/C++ Integration
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
-Connect Python forecasting to the C++ tiering engine without placing Python inference on the foreground request path.
+Connect accepted Python policy decisions to the C++ tiering engine and certify
+synchronous operation-level execution parity.
 
 ## Required capabilities
 
-- thin pybind11 interface;
-- compact batched forecast updates;
-- asynchronous event collection;
-- forecast snapshots;
-- C++ placement worker;
-- end-to-end metrics;
-- integration tests.
+- private `prism._native` pybind11 extension and public `prism.native` wrapper;
+- native builder input from deterministic Python-supplied immutable bytes;
+- structured native errors and immutable operation results;
+- independent Python expected-state ledger;
+- exact parity for Training-Popularity Static (Prism), Predictive Greedy (Prism),
+  LRU, and LFU;
+- forced dynamic fixtures and an accepted seed-1729 representative run;
+- deterministic store, manifest, JSONL operation, and JSON report artifacts;
+- editable and wheel installation tests.
 
 ## Completion gate
 
-- Foreground reads do not call Python synchronously.
-- Forecast updates cross the boundary in batches.
-- Ownership and lifetimes across the boundary are documented and tested.
-- End-to-end runs combine Python prediction with real C++ RAM/SSD placement.
-- Prediction and migration overhead are measured.
+- Python retains policy, forecast, benefit, and victim decisions; C++ retains
+  authoritative bytes, residency, movement, integrity checks, and counters.
+- Four policies have zero operation, payload, state, counter, or capacity
+  mismatches in both validation and test.
+- Forced fixtures exercise changed/unchanged targets and reactive movement.
+- Two complete fixture roots and two complete representative roots are
+  byte-identical.
+- Editable, wheel, Debug, ASan, UBSan, and Python regressions pass.
+
+This milestone is intentionally synchronous. Background migration, GIL release,
+batching, concurrency, and timing measurement remain future work rather than
+being silently included in the integration milestone.
 
 ---
 
 # Milestone 8 — Open-Source LLM Simulator Integration
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
 Evaluate Prism inside an independently developed LLM inference simulation environment.
 
-## Required capabilities
+## Implemented capabilities
 
-- adapter from simulator events to Prism’s generic event interface;
-- mapping from simulator cache objects to Prism records;
-- predictive and reactive placement comparisons;
-- simulator-native latency and throughput metrics;
-- no reconstruction of transformer or GPU execution simulation.
+- exact LLMServingSim commit and recursive ASTRA-Sim submodule pins;
+- native radix-prefix pages mapped to stable Prism block records;
+- policy-independent logical demand with a frozen chronological split;
+- native LRU, LFU, three Prism placements, and nondeployable oracle;
+- a narrow hook controlling only unpinned reusable prefix placement;
+- simulator-native latency, throughput, transfer, and recomputation outcomes;
+- deterministic canonical artifacts and per-policy lifecycle logs.
 
 ## Completion gate
 
@@ -327,17 +414,26 @@ Evaluate Prism inside an independently developed LLM inference simulation enviro
 - Integration does not require rewriting Prism’s core predictor/controller contract.
 - Results show whether the controlled-workload conclusions transfer.
 
+The integration reuses the accepted four-factor learner, predictor, projection,
+and deterministic greedy controller without tuning. LLMServingSim remains
+authoritative for scheduling, active KV, prefix matching, transfer, recompute,
+and execution timing. The Milestone 7 native store is intentionally not in this
+execution path. The frozen experiment produced a null/negative transfer result:
+static, frozen, predictive, LFU, and native LRU had identical test TTFT and
+recomputation, while Oracle added transfers and was slightly slower. See
+[the complete Milestone 8 results](milestone8_results.md).
+
 ---
 
 # Milestone 9 — Real Heterogeneous Deployment
 
-**Status:** Not started
+**Status:** Canceled at project closeout
 
-## Objective
+## Former objective
 
 Apply Prism to real inference state across GPU memory, CPU memory, and possibly local SSD.
 
-## Potential capabilities
+## Formerly proposed capabilities
 
 - real GPU-resident cache objects;
 - CPU/GPU transfer;
@@ -345,9 +441,17 @@ Apply Prism to real inference state across GPU memory, CPU memory, and possibly 
 - real TTFT, throughput, and memory-pressure measurements;
 - concurrency and contention analysis.
 
-## Completion gate
+## Closeout decision
 
-This milestone will be defined only after the LLM simulator integration exposes a specific and credible deployment target.
+Milestone 8 did not expose a specific, credible dynamic-placement benefit to
+validate on real heterogeneous hardware. Static, frozen, predictive, LFU, and
+native LRU had identical TTFT and recomputation in the pinned simulator run;
+Oracle added transfers and was slightly slower. Building a deployment would
+therefore add concurrency, hardware, and transfer complexity without repairing
+the missing forecast-to-action link.
+
+The milestone remains in this document to preserve the original progression. It
+is not active or deferred work, and no Milestone 9 behavior was implemented.
 
 ---
 
