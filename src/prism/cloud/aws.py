@@ -12,12 +12,14 @@ from prism.cloud.bundle import InputBundle
 from prism.cloud.contract import (
     CLOUD_SCHEMA_VERSION,
     COMPLETION_MANIFEST_NAME,
+    FAILURE_MANIFEST_NAME,
     INPUT_MANIFEST_NAME,
     RUNTIME_ARCHITECTURE,
     CloudContractError,
     canonical_json_bytes,
     checksum_sha256,
     completion_manifest,
+    failure_manifest,
     input_prefix,
     require_ecr_digest,
     safe_bucket,
@@ -228,6 +230,23 @@ class AwsCloud:
 
         job = self.describe_job(submission.batch_job_id)
         if job["status"] == "FAILED":
+            prefix = f"prism-cloud/v1/runs/{submission.run_id}/attempts/{submission.batch_job_id}"
+            try:
+                failure = failure_manifest(
+                    self._get_bytes(
+                        submission.bucket, f"{prefix}/{FAILURE_MANIFEST_NAME}"
+                    )
+                )
+            except Exception as error:
+                if not _not_found(error):
+                    return ResultInspection("Batch job failed", None)
+            else:
+                if (
+                    failure["run_id"] == submission.run_id
+                    and failure["batch_job_id"] == submission.batch_job_id
+                    and failure["stage"] == "phase1"
+                ):
+                    return ResultInspection("Prism experiment failed", None)
             return ResultInspection("Batch job failed", None)
         if job["status"] != "SUCCEEDED":
             return ResultInspection("not complete", None)
@@ -251,7 +270,12 @@ class AwsCloud:
         except CloudContractError:
             return ResultInspection("completion manifest invalid", None)
         for artifact in manifest["artifacts"]:
-            body = self._get_bytes(submission.bucket, artifact["key"])
+            try:
+                body = self._get_bytes(submission.bucket, artifact["key"])
+            except Exception as error:
+                if _not_found(error):
+                    return ResultInspection("artifact hash mismatch", manifest)
+                raise
             if len(body) != artifact["size"] or sha256_bytes(body) != artifact["sha256"]:
                 return ResultInspection("artifact hash mismatch", manifest)
         return ResultInspection("verified", manifest)

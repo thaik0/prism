@@ -14,6 +14,7 @@ CLOUD_SCHEMA_VERSION = "prism-cloud-v1"
 RUNTIME_ARCHITECTURE = "ARM64"
 INPUT_MANIFEST_NAME = "input_manifest.json"
 COMPLETION_MANIFEST_NAME = "completion_manifest.json"
+FAILURE_MANIFEST_NAME = "failure_manifest.json"
 SUBMISSION_MANIFEST_NAME = "submission.json"
 PHASE1_SPEC_MEMBER = "container/phase1-experiment.json"
 REQUIRED_INPUT_MEMBERS = (
@@ -233,6 +234,32 @@ def completion_manifest(
         expected_key = f"{expected_prefix}/artifacts/{item['path']}"
         if item["key"] != expected_key:
             raise CloudContractError("completion artifact key is inconsistent")
+    return value
+
+
+def failure_manifest(manifest_bytes: bytes) -> Mapping[str, Any]:
+    """Validate the non-authoritative diagnostic record for a failed attempt."""
+
+    value = _json_object(manifest_bytes, "failure manifest")
+    if set(value) != {
+        "schema_version",
+        "status",
+        "run_id",
+        "batch_job_id",
+        "stage",
+        "error_type",
+    }:
+        raise CloudContractError("failure manifest fields do not match prism-cloud-v1")
+    if value["schema_version"] != CLOUD_SCHEMA_VERSION or value["status"] != "failed":
+        raise CloudContractError("failure manifest status is invalid")
+    safe_run_id(value["run_id"])
+    attempt_prefix(value["run_id"], value["batch_job_id"])
+    if value["stage"] not in {"bootstrap", "phase1"}:
+        raise CloudContractError("failure manifest stage is invalid")
+    if not isinstance(value["error_type"], str) or not re.fullmatch(
+        r"[A-Za-z][A-Za-z0-9_]{0,127}", value["error_type"]
+    ):
+        raise CloudContractError("failure manifest error type is invalid")
     return value
 
 
