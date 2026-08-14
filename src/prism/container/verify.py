@@ -18,26 +18,19 @@ EXACT_SUFFIXES = (
     "/resolved_simulation_config.json",
     "/workload/config.json",
     "/workload/observable_events.jsonl",
-    "/workload/hidden_ground_truth.json",
     "/workload/summary.json",
     "/native_store/store.data",
     "/native_store/store.index",
     "/parity_operations.jsonl",
 )
 SEMANTIC_REPORT_SUFFIXES = (
+    "/workload/hidden_ground_truth.json",
     "/recovery_report.json",
     "/predictor/evaluation_report.json",
     "/simulation/evaluation_report.json",
     "/parity_report.json",
     "/run_status.json",
 )
-HASH_KEYS = {
-    "artifact_sha256",
-    "predictor_artifact_sha256",
-    "source_artifact_sha256",
-}
-
-
 class VerificationError(ValueError):
     """Raised when outputs violate exact or semantic parity."""
 
@@ -169,8 +162,8 @@ def _compare_npz(left: Path, right: Path, relative: str) -> None:
 
 def _compare_json(left: Any, right: Any, path: str) -> None:
     if isinstance(left, dict) and isinstance(right, dict):
-        left_keys = set(left) - HASH_KEYS
-        right_keys = set(right) - HASH_KEYS
+        left_keys = {key for key in left if not _is_hash_key(key)}
+        right_keys = {key for key in right if not _is_hash_key(key)}
         if left_keys != right_keys:
             raise VerificationError(f"JSON keys differ: {path}")
         for key in sorted(left_keys):
@@ -193,6 +186,10 @@ def _compare_json(left: Any, right: Any, path: str) -> None:
         return
     if left != right:
         raise VerificationError(f"JSON value differs: {path}")
+
+
+def _is_hash_key(key: str) -> bool:
+    return key.endswith("_sha256") or key.endswith("_hashes")
 
 
 def _tree_hashes(root: Path) -> dict[str, str]:

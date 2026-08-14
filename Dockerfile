@@ -1,6 +1,4 @@
-# syntax=docker/dockerfile:1
-
-ARG PYTHON_IMAGE=python:3.12.10-slim-bookworm
+ARG PYTHON_IMAGE=python:3.12.10-slim-bookworm@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db
 
 FROM ${PYTHON_IMAGE} AS build-test
 
@@ -19,8 +17,14 @@ RUN apt-get update \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system --gid 10000 prism-build \
+    && useradd --system --uid 10000 --gid prism-build --create-home prism-build \
+    && mkdir /build \
+    && chown prism-build:prism-build /build
+
 WORKDIR /source
-COPY . .
+COPY --chown=prism-build:prism-build . .
+USER 10000:10000
 
 # Exercise the standalone C++ contract independently from the Python wheel.
 RUN cmake -S cpp -B /build/native-debug -G Ninja \
@@ -49,6 +53,7 @@ RUN cmake -S cpp -B /build/native-ubsan -G Ninja \
 
 # Build the existing scikit-build-core wheel. Its private pybind11 extension
 # links the same prism_storage CMake target tested above.
+USER root
 RUN python -m pip wheel \
         --constraint container/constraints.txt \
         --wheel-dir /app-wheels \

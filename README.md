@@ -130,6 +130,27 @@ python3 -m prism.native.cli \
   --output-dir /tmp/prism_native_fixture
 ```
 
+Build and run the bounded Linux batch image:
+
+```bash
+docker build --no-cache \
+  --build-arg PRISM_GIT_REVISION="$(git rev-parse HEAD)" \
+  -t prism:phase1 .
+
+mkdir -p /tmp/prism_phase1_output
+chmod 0777 /tmp/prism_phase1_output
+docker run --rm \
+  --mount type=bind,src="$PWD",dst=/input,readonly \
+  --mount type=bind,src=/tmp/prism_phase1_output,dst=/output \
+  prism:phase1 \
+  prism-container-run \
+  --spec /input/container/phase1-experiment.json \
+  --output-dir /output
+```
+
+The [container batch contract](docs/containerization.md) documents the strict
+I/O boundary, deterministic manifest, parity rules, and failure behavior.
+
 The [reproducibility guide](docs/reproducibility.md) contains exact commands for
 the full controlled pipeline, sanitizer builds, frozen experiment families, and
 the pinned LLMServingSim integration.
@@ -144,6 +165,7 @@ the pinned LLMServingSim integration.
 | `src/prism/simulation` | projection, policies, controller, and cost replay |
 | `src/prism/experiments` | frozen Milestone 5 and 5.5 orchestration |
 | `src/prism/native` | deterministic payloads and Python/C++ parity |
+| `src/prism/container` | Linux batch runner, manifest, and parity verification |
 | `src/prism/llm_sim` | pinned LLMServingSim policy integration |
 | `cpp` | native immutable two-tier storage engine and tools |
 | `configs` | committed experiment and controller configurations |

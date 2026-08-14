@@ -40,6 +40,9 @@ at closeout.
 
 - [Native storage engine](native_storage_engine.md)
 - [Python/C++ integration and parity](python_cpp_integration.md)
+- [Linux container batch contract](containerization.md)
+- [Cloud Phase 1 verification](cloud_phase1_verification.md)
+- [Cloud Phase 1 execution plan](execution_plan_cloud_phase1.md)
 - [Milestone 8 execution plan](execution_plan_milestone8.md)
 - [Milestone 8 results](milestone8_results.md)
 
