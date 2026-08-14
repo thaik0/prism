@@ -45,8 +45,8 @@ def verify_outputs(
     right = Path(right_root).resolve()
     if mode not in {"repeat", "cross-platform"}:
         raise VerificationError("mode must be repeat or cross-platform")
-    left_manifest = _validated_manifest(left)
-    right_manifest = _validated_manifest(right)
+    left_manifest = validate_output_root(left)
+    right_manifest = validate_output_root(right)
     if mode == "repeat":
         left_hashes = _tree_hashes(left)
         right_hashes = _tree_hashes(right)
@@ -100,7 +100,10 @@ def verify_outputs(
     }
 
 
-def _validated_manifest(root: Path) -> dict[str, Any]:
+def validate_output_root(root: str | Path) -> dict[str, Any]:
+    """Validate one complete Phase 1 output and return its run manifest."""
+
+    root = Path(root).resolve()
     manifest_path = root / "run_manifest.json"
     value = _read_json(manifest_path)
     if value.get("schema_version") != 1 or not isinstance(value.get("artifacts"), dict):
