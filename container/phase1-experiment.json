@@ -1,0 +1,6 @@
+{
+  "experiment_id": "baseline__seed_1729",
+  "experiment_manifest": "configs/milestone5_experiments.json",
+  "kind": "accepted_milestone5_native_parity",
+  "schema_version": 1
+}

@@ -16,6 +16,10 @@ dependencies = [
     "scipy",
 ]
 
+[project.scripts]
+prism-container-run = "prism.container.runner:main"
+prism-container-verify = "prism.container.verify:main"
+
 [tool.scikit-build]
 minimum-version = "build-system.requires"
 cmake.source-dir = "cpp"
