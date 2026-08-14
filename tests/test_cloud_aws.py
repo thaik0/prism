@@ -34,9 +34,11 @@ class FakeEcr:
 class FakeBatch:
     def __init__(self, definition):
         self.definition = definition
+        self.describe_requests = []
         self.submitted = None
 
     def describe_job_definitions(self, **kwargs):
+        self.describe_requests.append(kwargs)
         return {"jobDefinitions": [self.definition]}
 
     def submit_job(self, **kwargs):
@@ -79,6 +81,9 @@ def test_ecr_resolution_and_arm64_fargate_job_definition_validation() -> None:
     )
     assert (image, digest) == (IMAGE, DIGEST)
     assert cloud.validate_job_definition("prism", IMAGE).endswith("prism:3")
+    assert batch.describe_requests == [
+        {"jobDefinitionName": "prism", "status": "ACTIVE"}
+    ]
 
     invalid = _definition()
     invalid["containerProperties"]["runtimePlatform"]["cpuArchitecture"] = "X86_64"
@@ -86,6 +91,34 @@ def test_ecr_resolution_and_arm64_fargate_job_definition_validation() -> None:
         AwsCloud(
             region="us-east-1", s3=FakeS3(), batch=FakeBatch(invalid)
         ).validate_job_definition("prism", IMAGE)
+
+
+def test_job_definition_lookup_uses_boto3_name_filter_contract() -> None:
+    boto3 = pytest.importorskip("boto3")
+    stubber_module = pytest.importorskip("botocore.stub")
+    batch = boto3.client(
+        "batch",
+        region_name="us-east-1",
+        aws_access_key_id="testing",
+        aws_secret_access_key="testing",
+        aws_session_token="testing",
+    )
+    definition = _definition()
+    definition.update(
+        {
+            "jobDefinitionName": "prism",
+            "status": "ACTIVE",
+            "type": "container",
+        }
+    )
+    with stubber_module.Stubber(batch) as stubber:
+        stubber.add_response(
+            "describe_job_definitions",
+            {"jobDefinitions": [definition]},
+            {"jobDefinitionName": "prism", "status": "ACTIVE"},
+        )
+        cloud = AwsCloud(region="us-east-1", s3=FakeS3(), batch=batch)
+        assert cloud.validate_job_definition("prism", IMAGE).endswith("prism:3")
 
 
 def test_batch_submission_request_has_only_allowlisted_overrides() -> None:

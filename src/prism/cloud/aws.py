@@ -148,7 +148,7 @@ class AwsCloud:
         if self.batch is None:
             raise CloudContractError("Batch client is unavailable")
         response = self.batch.describe_job_definitions(
-            jobDefinitions=[name], status="ACTIVE"
+            jobDefinitionName=name, status="ACTIVE"
         )
         definitions = response.get("jobDefinitions", [])
         if not definitions:
