@@ -59,7 +59,7 @@ def _fake_phase1(spec, output, **kwargs):
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     manifest = {
         "schema_version": 1,
-        "prism": {"package_version": "1.0.0", "git_revision": "abc123"},
+        "prism": {"package_version": "1.0.0", "git_revision": "abc1234"},
         "experiment": {
             "kind": "accepted_milestone5_native_parity",
             "experiment_id": "baseline__seed_1729",
@@ -155,6 +155,38 @@ def test_succeeded_batch_without_completion_is_incomplete() -> None:
     )
 
 
+def test_remote_result_rejects_artifact_subset_not_matching_phase1_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    s3 = FakeS3()
+    bootstrap = AwsCloud(region="us-east-1", s3=s3)
+    bundle = build_input_bundle(ROOT / "container/phase1-experiment.json")
+    bootstrap.upload_input_bundle(bucket=BUCKET, run_id=RUN_ID, bundle=bundle)
+    monkeypatch.setattr("prism.cloud.bootstrap.run_container_experiment", _fake_phase1)
+    completion = run_bootstrap(
+        cloud=bootstrap,
+        bucket=BUCKET,
+        run_id=RUN_ID,
+        batch_job_id=JOB_ID,
+        image_uri=IMAGE,
+        workspace=tmp_path / "work",
+    )
+    completion["artifacts"] = [
+        item for item in completion["artifacts"] if item["path"] == "run_manifest.json"
+    ]
+    completion_key = (
+        BUCKET,
+        f"prism-cloud/v1/runs/{RUN_ID}/attempts/{JOB_ID}/completion_manifest.json",
+    )
+    s3.objects[completion_key] = (
+        json.dumps(completion, allow_nan=False, indent=2, sort_keys=True) + "\n"
+    ).encode()
+    verifier = AwsCloud(region="us-east-1", s3=s3, batch=FakeBatch("SUCCEEDED"))
+    assert verifier.inspect_result(_submission(bundle.manifest_sha256)).state == (
+        "completion manifest invalid"
+    )
+
+
 def test_bootstrap_cli_fails_nonzero_without_required_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -167,3 +199,4 @@ def test_bootstrap_cli_fails_nonzero_without_required_environment(
     ):
         monkeypatch.delenv(name, raising=False)
     assert main([]) == 2
+    assert main(["unexpected"]) == 2

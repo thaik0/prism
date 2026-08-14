@@ -179,6 +179,14 @@ def completion_manifest(
         raise CloudContractError("Phase 1 container spec version is invalid")
     if scientific["phase1_experiment_id"] != "baseline__seed_1729":
         raise CloudContractError("Phase 1 experiment ID is invalid")
+    if not isinstance(scientific["prism_git_revision"], str) or not re.fullmatch(
+        r"[0-9a-f]{7,64}", scientific["prism_git_revision"]
+    ):
+        raise CloudContractError("Prism Git revision is missing or invalid")
+    if not isinstance(scientific["prism_package_version"], str) or not scientific[
+        "prism_package_version"
+    ]:
+        raise CloudContractError("Prism package version is missing")
     for field in (
         "phase1_run_manifest_sha256",
         "input_manifest_sha256",
@@ -215,16 +223,17 @@ def completion_manifest(
         raise CloudContractError("completion manifest Batch job ID does not match")
     if execution["runtime_architecture"] != RUNTIME_ARCHITECTURE:
         raise CloudContractError("completion runtime architecture is not ARM64")
-    digest = require_ecr_digest(execution["ecr_image_digest"])
-    if not isinstance(execution["ecr_image_uri"], str) or not execution[
-        "ecr_image_uri"
-    ].endswith("@" + digest):
-        raise CloudContractError("completion image URI is not digest-pinned")
     if not isinstance(execution["aws_region"], str) or not re.fullmatch(
         r"[a-z]{2}(?:-gov)?-[a-z]+-\d", execution["aws_region"]
     ):
         raise CloudContractError("completion AWS Region is invalid")
-
+    digest = require_ecr_digest(execution["ecr_image_digest"])
+    if not isinstance(execution["ecr_image_uri"], str) or not re.fullmatch(
+        rf"[0-9]{{12}}\.dkr\.ecr\.{re.escape(execution['aws_region'])}\.amazonaws\.com/"
+        rf"[a-z0-9]+(?:[._/-][a-z0-9]+)*@{digest}",
+        execution["ecr_image_uri"],
+    ):
+        raise CloudContractError("completion image URI is not digest-pinned")
     artifacts = _artifact_records(value["artifacts"], key_field=True)
     if not artifacts or "run_manifest.json" not in {
         item["path"] for item in artifacts

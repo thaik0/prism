@@ -144,7 +144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         result = args.handler(args)
-    except (CloudContractError, OSError, ValueError) as error:
+    except Exception as error:
         print(f"prism-cloud: {error}", file=sys.stderr)
         return 2
     print(json.dumps(result, separators=(",", ":"), sort_keys=True))

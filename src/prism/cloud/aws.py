@@ -269,6 +269,7 @@ class AwsCloud:
             )
         except CloudContractError:
             return ResultInspection("completion manifest invalid", None)
+        bodies: dict[str, bytes] = {}
         for artifact in manifest["artifacts"]:
             try:
                 body = self._get_bytes(submission.bucket, artifact["key"])
@@ -278,6 +279,9 @@ class AwsCloud:
                 raise
             if len(body) != artifact["size"] or sha256_bytes(body) != artifact["sha256"]:
                 return ResultInspection("artifact hash mismatch", manifest)
+            bodies[artifact["path"]] = body
+        if not _phase1_artifact_contract_matches(manifest, bodies):
+            return ResultInspection("completion manifest invalid", None)
         return ResultInspection("verified", manifest)
 
     def recent_logs(self, job_id: str, *, limit: int = 200) -> list[str]:
@@ -490,3 +494,47 @@ def _not_found(error: Exception) -> bool:
     response = getattr(error, "response", {})
     code = response.get("Error", {}).get("Code") if isinstance(response, dict) else None
     return code in {"NoSuchKey", "404", "NotFound"}
+
+
+def _phase1_artifact_contract_matches(
+    completion: Mapping[str, Any], bodies: Mapping[str, bytes]
+) -> bool:
+    """Tie the cloud artifact list back to the canonical Phase 1 manifest."""
+
+    raw = bodies.get("run_manifest.json")
+    if raw is None:
+        return False
+    scientific = completion["scientific_provenance"]
+    if sha256_bytes(raw) != scientific["phase1_run_manifest_sha256"]:
+        return False
+    try:
+        phase1 = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    if (
+        not isinstance(phase1, dict)
+        or phase1.get("schema_version") != 1
+        or not isinstance(phase1.get("artifacts"), dict)
+        or phase1.get("prism", {}).get("git_revision")
+        != scientific["prism_git_revision"]
+        or phase1.get("prism", {}).get("package_version")
+        != scientific["prism_package_version"]
+        or phase1.get("experiment", {}).get("experiment_id")
+        != scientific["phase1_experiment_id"]
+        or phase1.get("experiment", {}).get("spec_sha256")
+        != scientific["experiment_spec_sha256"]
+        or phase1.get("experiment", {}).get("source_sha256")
+        != scientific["source_sha256"]
+    ):
+        return False
+    phase1_artifacts = phase1["artifacts"]
+    expected_paths = set(phase1_artifacts) | {"run_manifest.json"}
+    if set(bodies) != expected_paths:
+        return False
+    completion_hashes = {
+        item["path"]: item["sha256"] for item in completion["artifacts"]
+    }
+    return all(
+        isinstance(digest, str) and completion_hashes.get(path) == digest
+        for path, digest in phase1_artifacts.items()
+    )

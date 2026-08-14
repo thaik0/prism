@@ -2,7 +2,8 @@
 
 ## Status and boundary
 
-**Status:** In progress
+**Status:** Local implementation complete; real AWS acceptance blocked by
+unavailable credentials
 
 This milestone adds one narrow AWS Batch adapter around the accepted Cloud
 Phase 1 Linux/ARM64 runner. It does not change the selected experiment, its
@@ -67,8 +68,9 @@ uses the existing exact/discrete/numerical semantic classifications.
 
 ## Completion checkpoints
 
-- [ ] Versioned contracts, deterministic bundle, AWS adapter, and local CLI.
-- [ ] Bootstrap, completion validation, safe download, and failure tests.
-- [ ] Manual AWS documentation and local regression verification.
+- [x] Versioned contracts, deterministic bundle, AWS adapter, and local CLI.
+- [x] Bootstrap, completion validation, safe download, and failure tests.
+- [x] Manual AWS documentation and local regression verification.
 - [ ] Valid and invalid real Batch acceptance evidence, or an explicit external
-  prerequisite blocker.
+  prerequisite blocker. The blocker is recorded: the standard boto3 chain has
+  no credentials or Region in the execution environment.

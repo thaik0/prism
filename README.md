@@ -151,6 +151,20 @@ docker run --rm \
 The [container batch contract](docs/containerization.md) documents the strict
 I/O boundary, deterministic manifest, parity rules, and failure behavior.
 
+After manual account setup, submit that accepted image to AWS Batch/Fargate
+through the narrow Cloud Phase 2 adapter:
+
+```bash
+prism-cloud submit --spec container/phase1-experiment.json
+prism-cloud status RUN_ID
+prism-cloud logs RUN_ID
+prism-cloud download RUN_ID --output-dir /tmp/prism-cloud-output
+```
+
+The [AWS Batch execution contract](docs/cloud_phase2.md) documents immutable ECR
+provenance, separate IAM roles, S3 completion semantics, verification, and
+teardown. AWS credentials come only from the standard boto3 provider chain.
+
 The [reproducibility guide](docs/reproducibility.md) contains exact commands for
 the full controlled pipeline, sanitizer builds, frozen experiment families, and
 the pinned LLMServingSim integration.
@@ -166,6 +180,7 @@ the pinned LLMServingSim integration.
 | `src/prism/experiments` | frozen Milestone 5 and 5.5 orchestration |
 | `src/prism/native` | deterministic payloads and Python/C++ parity |
 | `src/prism/container` | Linux batch runner, manifest, and parity verification |
+| `src/prism/cloud` | deterministic S3 bundle, AWS Batch CLI/bootstrap, and verified download |
 | `src/prism/llm_sim` | pinned LLMServingSim policy integration |
 | `cpp` | native immutable two-tier storage engine and tools |
 | `configs` | committed experiment and controller configurations |

@@ -199,7 +199,8 @@ def _required_environment(name: str) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    if argv:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments:
         print("prism-cloud-bootstrap: command arguments are not allowed", file=sys.stderr)
         return 2
     cloud: AwsCloud | None = None
