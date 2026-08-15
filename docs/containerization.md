@@ -112,22 +112,53 @@ prism-container-verify \
 ```
 
 `repeat` requires identical path sets and bytes for every artifact and manifest.
+It is the regression contract for repeated execution on one numerical
+host/runtime environment; it is not a promise that distinct CPUs select and
+execute identical floating-point kernels.
+
+For the same image and declared runtime on distinct hosts, use `--mode
+cross-host`:
+
+```bash
+prism-container-verify \
+  --left /tmp/prism-local-output \
+  --right /tmp/prism-remote-output \
+  --mode cross-host
+```
+
+`cross-host` requires identical Python, OS, architecture, NumPy, SciPy,
+scikit-learn, native-build, package, source, spec, and input identity. It then
+verifies every manifest artifact under the semantic contract below.
 
 For native macOS versus Linux container output, use `--mode cross-platform`.
 The contract is:
 
-- byte-identical resolved workload/simulation configs, workload config,
-  observable events, summary, native `store.data`, native `store.index`, and
-  native operation JSONL;
-- identical NPZ array names, shapes, and all discrete/string/boolean values;
+- byte identity for every artifact not explicitly classified as a numerical
+  NPZ or semantic numerical JSON report;
+- identical NPZ array names, shapes, dtypes, and all discrete/string/boolean
+  values;
 - floating NPZ arrays and semantic report numbers within absolute `1e-9`, with
-  gate/status/policy/ID values exact;
+  JSON keys, list structure, integers, gate/status/policy/ID values exact;
 - identical package/source/spec identity and independently validated artifact
   hashes in both manifests.
+
+Hash values derived from floating artifacts may differ, but their structure is
+exactly checked. Source/input identity is checked separately, and every file is
+validated against its own manifest before comparison. `cross-platform` keeps
+the same artifact rules but permits declared runtime metadata to differ.
 
 Hidden-ground-truth JSON is numerical rather than byte-gated because verified
 macOS/Linux math-library differences changed only last-bit probability values;
 the observable event stream and summary remained byte-identical.
+
+Pinned wheels and explicit random seeds make the procedure reproducible, but
+OpenBLAS can dispatch different kernels and reduction topologies based on the
+host CPU and available threads. Phase 2 diagnosis confirmed that changing only
+this execution topology changes last-bit NMF values and downstream floating
+artifacts while same-host runs remain byte-identical. Exact cross-host floating
+bytes would require a separately verified portable numerical kernel or a more
+invasive exact-arithmetic/canonical-quantization design; thread limits alone do
+not establish that guarantee.
 
 ## Representative scope and limitations
 

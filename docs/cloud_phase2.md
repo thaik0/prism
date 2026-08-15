@@ -219,12 +219,20 @@ Compare the verified download to an accepted local Linux output:
 
 ```bash
 prism-container-verify --left /tmp/prism-phase1-local \
-  --right /tmp/prism-cloud-output --mode repeat
+  --right /tmp/prism-cloud-output --mode cross-host
 ```
 
-Both use Linux/ARM64 and the same image digest, so acceptance requires complete
-byte identity. Use `cross-platform` only for the separately documented native
-macOS/Linux comparison.
+Both use Linux/ARM64 and the same image digest, so `cross-host` first requires
+identical declared runtime, package, source, spec, and input identity. Every
+non-numerical artifact is byte-gated; NPZ structure and discrete arrays are
+exact; and floating arrays/report numbers use the accepted absolute `1e-9`
+tolerance. Each root's S3/local artifact hashes are independently validated.
+
+Use `repeat` only for repeated executions on one numerical host/runtime where
+complete byte identity is valid. A container pins software, but NumPy/SciPy
+wheels may select different BLAS kernels and reduction topologies on distinct
+ARM64 CPUs. Use `cross-platform` for the separately documented native
+macOS/Linux comparison, where declared runtime metadata is expected to differ.
 
 ## Deliberate missing-input failure
 

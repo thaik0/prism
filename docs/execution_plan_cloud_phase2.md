@@ -2,13 +2,16 @@
 
 ## Status and boundary
 
-**Status:** Local implementation complete; real AWS acceptance blocked by
-unavailable credentials
+**Status:** Local implementation and one valid real AWS execution complete;
+cross-host numerical parity contract corrected
 
 This milestone adds one narrow AWS Batch adapter around the accepted Cloud
 Phase 1 Linux/ARM64 runner. It does not change the selected experiment, its
-scientific pipeline, native semantics, deterministic artifacts, or parity
-rules. Infrastructure automation and deployment CI remain outside this phase.
+scientific pipeline, native semantics, or deterministic artifacts.
+The first real run showed that whole-tree byte identity is a same-host repeat
+guarantee, not a distinct-host floating-point guarantee; the follow-up contract
+is recorded in `docs/execution_plan_cloud_phase2_parity.md`. Infrastructure
+automation and deployment CI remain outside this phase.
 
 ## Repository contracts inspected
 
@@ -71,6 +74,10 @@ uses the existing exact/discrete/numerical semantic classifications.
 - [x] Versioned contracts, deterministic bundle, AWS adapter, and local CLI.
 - [x] Bootstrap, completion validation, safe download, and failure tests.
 - [x] Manual AWS documentation and local regression verification.
-- [ ] Valid and invalid real Batch acceptance evidence, or an explicit external
-  prerequisite blocker. The blocker is recorded: the standard boto3 chain has
-  no credentials or Region in the execution environment.
+- [x] One valid real Batch run reached `SUCCEEDED`, reported Linux/ARM64,
+  published and downloaded 30 validated files, and exposed the cross-host
+  floating-point boundary.
+- [x] Cross-host parity diagnosis and a complete exact/discrete/tolerant
+  verifier contract.
+- [ ] Invalid-input Batch evidence, cost record, and teardown evidence unless
+  retained outside this repository.

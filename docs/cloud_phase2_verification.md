@@ -2,10 +2,14 @@
 
 ## Status
 
-**Status:** Local implementation verified; real AWS acceptance blocked.
+**Status:** Valid real AWS execution operationally verified; cross-host parity
+contract corrected and locally verified.
 
-This record is intentionally incomplete until valid and invalid real AWS Batch
-executions run. Local tests are not represented as cloud acceptance evidence.
+The valid Batch run succeeded and its cloud artifacts were independently
+validated. The original whole-tree byte comparison against a fresh local run
+exposed a last-bit numerical portability boundary. This record distinguishes
+that boundary from AWS operational correctness and does not represent local
+tests as cloud evidence.
 
 ## Repository and local verification
 
@@ -55,38 +59,50 @@ No repository credential pattern was found outside the pinned third-party tree.
 The image contains boto3 but no access key, secret, session token, credential
 file, or account identifier.
 
-## Real AWS acceptance evidence to record
+## Real AWS valid-run evidence
 
-- sanitized caller identity and Region command;
-- ECR repository and immutable image digest;
-- bucket/prefix, execution role, Prism job role, compute environment, queue,
-  public subnet IDs (sanitized), no-inbound security group, and job-definition
-  revision;
-- valid Prism run ID and Batch job ID;
-- Batch `SUCCEEDED`, Linux/ARM64 evidence, CloudWatch stream, final completion
-  key, downloaded artifact count, and S3 hash validation;
-- exact repeat verification against accepted local Linux output;
-- invalid-input job ID, `FAILED`, nonzero exit, log evidence, and confirmation
-  that no successful completion manifest exists;
-- optional repeated valid job parity if cost remains immaterial;
-- runtime-derived cost estimate with dated Region pricing source;
-- teardown status and any intentionally retained resources.
+Run `pcv1-739ccbafb9f94363a2647012` supplied the following real acceptance
+evidence:
 
-## External blocker and unperformed acceptance
+- AWS Batch reached `SUCCEEDED`;
+- the runtime reported `aarch64` and CloudWatch logs were available;
+- the workload published 29 hashed Phase 1 artifacts plus `run_manifest.json`;
+- Prism result validation passed; and
+- `prism-cloud download` verified every downloaded S3 artifact.
 
-On August 14, 2026, a read-only boto3 session/STS probe reported no credentials
-and no configured Region. AWS CLI was also absent before the temporary boto3
-probe. Consequently:
+The inputs and workload artifacts matched a fresh local Linux/ARM64 run of the
+same Phase 2 image. `--mode repeat` correctly rejected whole-tree byte identity.
+The first differences were `structure/learned_structure.npz` and
+`structure/recovery_report.json`: for example, activation cosine similarity was
+`0.9853218619186884` locally versus `0.9853218619186886` on AWS, and
+reconstruction error was `217.38123663101337` versus
+`217.38123663101345`. Differences at roughly `1e-16` to `1e-13` propagated into
+predictor and simulation floating artifacts and their hashes. No scientific
+gate or discrete result was reported to change.
 
-- no ECR repository, S3 bucket, IAM role, security group, compute environment,
-  queue, or job definition was created;
-- no image was pushed and no immutable ECR digest exists;
-- no valid or invalid Batch job ID, CloudWatch stream, S3 completion key,
-  cloud download, cloud/local parity result, runtime-derived cost, or teardown
-  evidence exists;
-- teardown is not applicable because no AWS resources were created.
+## Determinism-boundary diagnosis
 
-These are required Phase 2 acceptance items and remain incomplete. No mock ID or
-local Docker result is substituted for real AWS evidence. Resuming acceptance
-requires a Region and usable credentials through the standard boto3 provider
-chain, then following the exact commands in `docs/cloud_phase2.md`.
+Two independent local runs of the exact image ID `fa19e2cd...` were identical
+across all 30 files. The image contained NumPy 2.3.2, SciPy 1.16.1,
+scikit-learn 1.9.0, and OpenBLAS 0.3.30. On the local host OpenBLAS selected the
+`neoversen1` kernel and 12 threads.
+
+Changing only the BLAS thread count reproduced last-bit divergence beginning in
+NMF and propagating downstream. Forced generic ARM kernels produced additional
+last-bit variants; forcing a Neoverse V1 kernel was unsupported by the local
+CPU. No tested thread count reproduced the exact AWS pair. This isolates the
+cause to host-selected floating-point kernel/reduction execution rather than
+input mismatch, global random state, or cloud orchestration. Thread pinning
+alone is therefore not a demonstrated cross-host byte-identity fix.
+
+The corrected `cross-host` contract preserves same-host `repeat` byte identity,
+requires identical declared image runtime and scientific identity, and verifies
+all 29 manifest artifacts. In the controlled thread-topology comparison it
+reported 13 byte-identical artifacts, 6 numerical NPZ artifacts, 10 semantic
+JSON artifacts, and maximum absolute drift `5.665276581190426e-11`, passing the
+existing `1e-9` Phase 1 tolerance. The new mode still needs to be run against
+the retained local/AWS roots; it does not require another Batch submission.
+
+Invalid-input execution, cost evidence, and teardown remain separate Phase 2
+acceptance items unless already recorded outside this repository. No AWS
+resource was modified or recreated during this diagnosis.

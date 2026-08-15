@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 from typing import Any, Sequence
@@ -13,24 +14,20 @@ import numpy as np
 
 
 NUMERICAL_ABSOLUTE_TOLERANCE = 1e-9
-EXACT_SUFFIXES = (
-    "/resolved_workload_config.json",
-    "/resolved_simulation_config.json",
-    "/workload/config.json",
-    "/workload/observable_events.jsonl",
-    "/workload/summary.json",
-    "/native_store/store.data",
-    "/native_store/store.index",
-    "/parity_operations.jsonl",
-)
 SEMANTIC_REPORT_SUFFIXES = (
+    "/aggregate_report.json",
+    "/experiment_index.json",
     "/workload/hidden_ground_truth.json",
+    "/workload/workload_validation.json",
     "/recovery_report.json",
     "/predictor/evaluation_report.json",
+    "/simulation/simulation_config.json",
     "/simulation/evaluation_report.json",
     "/parity_report.json",
     "/run_status.json",
 )
+
+
 class VerificationError(ValueError):
     """Raised when outputs violate exact or semantic parity."""
 
@@ -43,8 +40,10 @@ def verify_outputs(
 ) -> dict[str, Any]:
     left = Path(left_root).resolve()
     right = Path(right_root).resolve()
-    if mode not in {"repeat", "cross-platform"}:
-        raise VerificationError("mode must be repeat or cross-platform")
+    if mode not in {"repeat", "cross-host", "cross-platform"}:
+        raise VerificationError(
+            "mode must be repeat, cross-host, or cross-platform"
+        )
     left_manifest = validate_output_root(left)
     right_manifest = validate_output_root(right)
     if mode == "repeat":
@@ -65,30 +64,41 @@ def verify_outputs(
             "byte_identical_file_count": len(left_hashes),
             "numerical_file_count": 0,
             "semantic_report_count": 0,
+            "verified_artifact_count": len(left_hashes),
             "absolute_tolerance": 0.0,
+            "maximum_absolute_difference": 0.0,
         }
 
     _same_identity(left_manifest, right_manifest)
+    if mode == "cross-host":
+        _same_declared_runtime(left_manifest, right_manifest)
     common_paths = set(left_manifest["artifacts"]) & set(right_manifest["artifacts"])
     if set(left_manifest["artifacts"]) != set(right_manifest["artifacts"]):
-        raise VerificationError("cross-platform artifact path sets differ")
-    exact = sorted(path for path in common_paths if path.endswith(EXACT_SUFFIXES))
+        raise VerificationError("semantic parity artifact path sets differ")
     numerical = sorted(path for path in common_paths if path.endswith(".npz"))
     semantic = sorted(
         path for path in common_paths if path.endswith(SEMANTIC_REPORT_SUFFIXES)
     )
+    exact = sorted(common_paths - set(numerical) - set(semantic))
     if not exact or not numerical or not semantic:
-        raise VerificationError("cross-platform artifact classification is incomplete")
+        raise VerificationError("semantic parity artifact classification is incomplete")
     for relative in exact:
         if _sha256(left / relative) != _sha256(right / relative):
             raise VerificationError(f"byte-identical artifact differs: {relative}")
+    maximum_difference = 0.0
     for relative in numerical:
-        _compare_npz(left / relative, right / relative, relative)
+        maximum_difference = max(
+            maximum_difference,
+            _compare_npz(left / relative, right / relative, relative),
+        )
     for relative in semantic:
-        _compare_json(
-            _read_json(left / relative),
-            _read_json(right / relative),
-            relative,
+        maximum_difference = max(
+            maximum_difference,
+            _compare_json(
+                _read_json(left / relative),
+                _read_json(right / relative),
+                relative,
+            ),
         )
     return {
         "mode": mode,
@@ -96,7 +106,9 @@ def verify_outputs(
         "byte_identical_file_count": len(exact),
         "numerical_file_count": len(numerical),
         "semantic_report_count": len(semantic),
+        "verified_artifact_count": len(common_paths),
         "absolute_tolerance": NUMERICAL_ABSOLUTE_TOLERANCE,
+        "maximum_absolute_difference": maximum_difference,
     }
 
 
@@ -137,7 +149,16 @@ def _same_identity(left: dict[str, Any], right: dict[str, Any]) -> None:
         raise VerificationError("source configuration hashes differ")
 
 
-def _compare_npz(left: Path, right: Path, relative: str) -> None:
+def _same_declared_runtime(
+    left: dict[str, Any], right: dict[str, Any]
+) -> None:
+    for field in ("runtime", "native_build"):
+        if left.get(field) != right.get(field):
+            raise VerificationError(f"declared runtime differs at {field}")
+
+
+def _compare_npz(left: Path, right: Path, relative: str) -> float:
+    maximum_difference = 0.0
     with np.load(left, allow_pickle=False) as first, np.load(
         right, allow_pickle=False
     ) as second:
@@ -148,7 +169,9 @@ def _compare_npz(left: Path, right: Path, relative: str) -> None:
             b = second[name]
             if a.shape != b.shape:
                 raise VerificationError(f"NPZ shape differs: {relative}:{name}")
-            if a.dtype.kind in "fc" or b.dtype.kind in "fc":
+            if a.dtype != b.dtype:
+                raise VerificationError(f"NPZ dtype differs: {relative}:{name}")
+            if a.dtype.kind in "fc":
                 if not np.allclose(
                     a,
                     b,
@@ -159,40 +182,91 @@ def _compare_npz(left: Path, right: Path, relative: str) -> None:
                     raise VerificationError(
                         f"numerical array exceeds tolerance: {relative}:{name}"
                     )
+                finite = np.isfinite(a) & np.isfinite(b)
+                if np.any(finite):
+                    maximum_difference = max(
+                        maximum_difference,
+                        float(np.max(np.abs(a[finite] - b[finite]))),
+                    )
             elif not np.array_equal(a, b):
                 raise VerificationError(f"discrete array differs: {relative}:{name}")
+    return maximum_difference
 
 
-def _compare_json(left: Any, right: Any, path: str) -> None:
+def _compare_json(left: Any, right: Any, path: str) -> float:
     if isinstance(left, dict) and isinstance(right, dict):
-        left_keys = {key for key in left if not _is_hash_key(key)}
-        right_keys = {key for key in right if not _is_hash_key(key)}
+        left_keys = set(left)
+        right_keys = set(right)
         if left_keys != right_keys:
             raise VerificationError(f"JSON keys differ: {path}")
+        maximum_difference = 0.0
         for key in sorted(left_keys):
-            _compare_json(left[key], right[key], f"{path}.{key}")
-        return
+            child_path = f"{path}.{key}"
+            if _is_hash_key(key):
+                _compare_hash_structure(left[key], right[key], child_path)
+            else:
+                maximum_difference = max(
+                    maximum_difference,
+                    _compare_json(left[key], right[key], child_path),
+                )
+        return maximum_difference
     if isinstance(left, list) and isinstance(right, list):
         if len(left) != len(right):
             raise VerificationError(f"JSON list length differs: {path}")
+        maximum_difference = 0.0
         for index, (first, second) in enumerate(zip(left, right, strict=True)):
-            _compare_json(first, second, f"{path}[{index}]")
-        return
+            maximum_difference = max(
+                maximum_difference,
+                _compare_json(first, second, f"{path}[{index}]"),
+            )
+        return maximum_difference
+    if (
+        isinstance(left, int)
+        and not isinstance(left, bool)
+        and isinstance(right, int)
+        and not isinstance(right, bool)
+    ):
+        if left != right:
+            raise VerificationError(f"JSON integer differs: {path}")
+        return 0.0
     if (
         isinstance(left, (int, float))
         and not isinstance(left, bool)
         and isinstance(right, (int, float))
         and not isinstance(right, bool)
     ):
-        if abs(float(left) - float(right)) > NUMERICAL_ABSOLUTE_TOLERANCE:
+        first = float(left)
+        second = float(right)
+        if not math.isfinite(first) or not math.isfinite(second):
+            raise VerificationError(f"JSON number is not finite: {path}")
+        difference = abs(first - second)
+        if difference > NUMERICAL_ABSOLUTE_TOLERANCE:
             raise VerificationError(f"JSON number exceeds tolerance: {path}")
-        return
+        return difference
     if left != right:
         raise VerificationError(f"JSON value differs: {path}")
+    return 0.0
+
+
+def _compare_hash_structure(left: Any, right: Any, path: str) -> None:
+    if isinstance(left, dict) and isinstance(right, dict):
+        if set(left) != set(right):
+            raise VerificationError(f"JSON hash keys differ: {path}")
+        for key in sorted(left):
+            _compare_hash_structure(left[key], right[key], f"{path}.{key}")
+        return
+    if isinstance(left, list) and isinstance(right, list):
+        if len(left) != len(right):
+            raise VerificationError(f"JSON hash list length differs: {path}")
+        for index, (first, second) in enumerate(zip(left, right, strict=True)):
+            _compare_hash_structure(first, second, f"{path}[{index}]")
+        return
+    if not isinstance(left, str) or not isinstance(right, str):
+        raise VerificationError(f"JSON hash value type differs: {path}")
 
 
 def _is_hash_key(key: str) -> bool:
-    return key.endswith("_sha256") or key.endswith("_hashes")
+    return key == "sha256" or key.endswith("_sha256") or key.endswith("_hashes")
 
 
 def _tree_hashes(root: Path) -> dict[str, str]:
@@ -220,12 +294,14 @@ def _read_json(path: Path) -> Any:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Verify Prism repeat determinism or native/container parity."
+        description="Verify Prism repeat determinism or cross-runtime parity."
     )
     parser.add_argument("--left", required=True, type=Path)
     parser.add_argument("--right", required=True, type=Path)
     parser.add_argument(
-        "--mode", required=True, choices=("repeat", "cross-platform")
+        "--mode",
+        required=True,
+        choices=("repeat", "cross-host", "cross-platform"),
     )
     return parser
 
