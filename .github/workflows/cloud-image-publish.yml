@@ -2,6 +2,8 @@ name: Publish Prism ARM64 image
 
 on:
   workflow_dispatch:
+  push:
+    branches: [cloud/milestone3]
 
 permissions:
   contents: read

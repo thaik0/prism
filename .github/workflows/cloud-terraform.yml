@@ -16,6 +16,8 @@ on:
         description: Type APPLY when operation is apply
         required: false
         type: string
+  push:
+    branches: [cloud/milestone3]
 
 permissions:
   contents: read
@@ -26,7 +28,6 @@ env:
   AWS_REGION: us-east-1
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
-  TF_VAR_image_uri: ${{ inputs.image_uri }}
 
 jobs:
   terraform:
@@ -54,7 +55,15 @@ jobs:
           aws sts get-caller-identity
       - run: terraform -chdir=infra/terraform/main init
       - run: terraform -chdir=infra/terraform/main validate
-      - name: Create reviewable plan
+      - name: Create reviewable foundation plan for branch acceptance
+        if: github.event_name == 'push'
+        run: |
+          terraform -chdir=infra/terraform/main plan -out="$RUNNER_TEMP/prism.tfplan"
+          terraform -chdir=infra/terraform/main show -no-color "$RUNNER_TEMP/prism.tfplan" > "$RUNNER_TEMP/prism-plan.txt"
+      - name: Create reviewable promotion plan
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TF_VAR_image_uri: ${{ inputs.image_uri }}
         run: |
           terraform -chdir=infra/terraform/main plan -out="$RUNNER_TEMP/prism.tfplan"
           terraform -chdir=infra/terraform/main show -no-color "$RUNNER_TEMP/prism.tfplan" > "$RUNNER_TEMP/prism-plan.txt"
@@ -66,7 +75,11 @@ jobs:
           retention-days: 14
       - name: Apply reviewed plan
         if: inputs.operation == 'apply'
+        env:
+          TF_VAR_image_uri: ${{ inputs.image_uri }}
         run: terraform -chdir=infra/terraform/main apply "$RUNNER_TEMP/prism.tfplan"
       - name: Verify no drift after apply
         if: inputs.operation == 'apply'
+        env:
+          TF_VAR_image_uri: ${{ inputs.image_uri }}
         run: terraform -chdir=infra/terraform/main plan -detailed-exitcode
