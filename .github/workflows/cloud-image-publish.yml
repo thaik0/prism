@@ -20,6 +20,8 @@ jobs:
     environment: prism-cloud-deploy
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: recursive
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

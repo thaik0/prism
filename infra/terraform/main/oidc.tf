@@ -190,6 +190,7 @@ data "aws_iam_policy_document" "github_terraform" {
       "s3:DeleteBucket",
       "s3:DeleteBucketPolicy",
       "s3:GetBucketLifecycleConfiguration",
+      "s3:GetBucketAcl",
       "s3:GetBucketLocation",
       "s3:GetBucketOwnershipControls",
       "s3:GetBucketPolicy",
@@ -303,6 +304,7 @@ data "aws_iam_policy_document" "github_terraform" {
     actions = [
       "ec2:DescribeSecurityGroups",
       "ec2:DescribeSubnets",
+      "ec2:DescribeVpcAttribute",
       "ec2:DescribeVpcs",
     ]
     resources = ["*"]
