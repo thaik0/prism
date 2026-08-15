@@ -72,8 +72,8 @@ its accepted never-expire retention and received only Terraform ownership tags.
 Trust and permission policies solve different problems:
 
 - each role's trust policy accepts only GitHub's provider, audience
-  `sts.amazonaws.com`, repository `thaik0/prism`, and its exact environment
-  subject;
+  `sts.amazonaws.com`, repository `thaik0/prism`, its immutable GitHub owner
+  and repository IDs, and its exact environment subject;
 - each role's permissions policy limits what an accepted workflow can do.
 
 `prism-cloud-deploy` can publish to the Prism ECR repository and run/inspect the

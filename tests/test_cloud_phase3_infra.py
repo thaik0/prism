@@ -41,8 +41,8 @@ def test_oidc_trust_is_repository_audience_and_environment_exact() -> None:
     oidc = _read(TERRAFORM / "main" / "oidc.tf")
     variables = _read(TERRAFORM / "main" / "variables.tf")
     assert 'values   = ["sts.amazonaws.com"]' in oidc
-    assert 'repo:${var.github_repository}:environment:' in oidc
-    assert 'default     = "thaik0/prism"' in variables
+    assert 'repo:${var.github_oidc_repository_subject}:environment:' in oidc
+    assert 'default     = "thaik0@206290841/prism@1322114194"' in variables
     assert 'default     = "prism-cloud-deploy"' in variables
     assert 'default     = "prism-cloud-apply"' in variables
     assert "AdministratorAccess" not in oidc

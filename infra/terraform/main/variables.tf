@@ -62,10 +62,10 @@ variable "image_uri" {
   }
 }
 
-variable "github_repository" {
-  description = "Exact GitHub owner/repository allowed by OIDC trust."
+variable "github_oidc_repository_subject" {
+  description = "GitHub-customized OIDC owner/repository subject, including immutable IDs."
   type        = string
-  default     = "thaik0/prism"
+  default     = "thaik0@206290841/prism@1322114194"
 }
 
 variable "github_deploy_environment" {

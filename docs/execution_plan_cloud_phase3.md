@@ -52,8 +52,9 @@ job definition.
 
 ## OIDC trust and workflow layout
 
-OIDC trust is limited to repository `thaik0/prism`, audience
-`sts.amazonaws.com`, and exact GitHub deployment-environment subjects:
+OIDC trust is limited to repository `thaik0/prism` using GitHub's customized
+immutable owner/repository IDs, audience `sts.amazonaws.com`, and exact GitHub
+deployment-environment subjects:
 
 - `prism-cloud-deploy` for immutable ECR publication and manual smoke;
 - `prism-cloud-apply` for Terraform plan/apply.
