@@ -46,6 +46,8 @@ at closeout.
 - [AWS Batch cloud execution](cloud_phase2.md)
 - [Cloud Phase 2 verification](cloud_phase2_verification.md)
 - [Cloud Phase 2 execution plan](execution_plan_cloud_phase2.md)
+- [Cloud Phase 3 Terraform and OIDC operations](cloud_phase3.md)
+- [Cloud Phase 3 execution plan](execution_plan_cloud_phase3.md)
 - [Milestone 8 execution plan](execution_plan_milestone8.md)
 - [Milestone 8 results](milestone8_results.md)
 

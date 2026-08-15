@@ -205,6 +205,7 @@ export PRISM_CLOUD_JOB_DEFINITION="$PRISM_JOB_DEFINITION"
 
 prism-cloud submit --spec container/phase1-experiment.json
 prism-cloud status RUN_ID
+prism-cloud wait RUN_ID
 prism-cloud logs RUN_ID
 prism-cloud download RUN_ID --output-dir /tmp/prism-cloud-output
 ```

@@ -1,0 +1,72 @@
+name: Prism Cloud Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Review a plan or deliberately apply it
+        required: true
+        type: choice
+        options: [plan, apply]
+      image_uri:
+        description: Approved immutable ECR repository@sha256 digest
+        required: true
+        type: string
+      apply_confirmation:
+        description: Type APPLY when operation is apply
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_ACCOUNT_ID: "164998084998"
+  AWS_REGION: us-east-1
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_image_uri: ${{ inputs.image_uri }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-24.04
+    environment: prism-cloud-apply
+    steps:
+      - uses: actions/checkout@v5
+      - name: Require deliberate apply confirmation
+        if: inputs.operation == 'apply'
+        env:
+          APPLY_CONFIRMATION: ${{ inputs.apply_confirmation }}
+        run: test "$APPLY_CONFIRMATION" = APPLY
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::164998084998:role/prism-cloud-github-terraform
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: prism-terraform-${{ github.run_id }}
+      - name: Verify temporary AWS identity
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          test "$account" = "$AWS_ACCOUNT_ID"
+          aws sts get-caller-identity
+      - run: terraform -chdir=infra/terraform/main init
+      - run: terraform -chdir=infra/terraform/main validate
+      - name: Create reviewable plan
+        run: |
+          terraform -chdir=infra/terraform/main plan -out="$RUNNER_TEMP/prism.tfplan"
+          terraform -chdir=infra/terraform/main show -no-color "$RUNNER_TEMP/prism.tfplan" > "$RUNNER_TEMP/prism-plan.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prism-terraform-plan-${{ github.run_id }}
+          path: ${{ runner.temp }}/prism-plan.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Apply reviewed plan
+        if: inputs.operation == 'apply'
+        run: terraform -chdir=infra/terraform/main apply "$RUNNER_TEMP/prism.tfplan"
+      - name: Verify no drift after apply
+        if: inputs.operation == 'apply'
+        run: terraform -chdir=infra/terraform/main plan -detailed-exitcode

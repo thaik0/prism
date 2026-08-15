@@ -6,7 +6,8 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
-from typing import Any, Mapping
+import time
+from typing import Any, Callable, Mapping
 
 from prism.cloud.bundle import InputBundle
 from prism.cloud.contract import (
@@ -283,6 +284,31 @@ class AwsCloud:
         if not _phase1_artifact_contract_matches(manifest, bodies):
             return ResultInspection("completion manifest invalid", None)
         return ResultInspection("verified", manifest)
+
+    def wait_for_result(
+        self,
+        submission: Submission,
+        *,
+        timeout_seconds: float,
+        poll_interval_seconds: float,
+        clock: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> tuple[Mapping[str, Any], ResultInspection]:
+        """Wait for native Batch completion and then inspect Prism validity."""
+
+        if timeout_seconds <= 0 or poll_interval_seconds <= 0:
+            raise CloudContractError("wait timeout and poll interval must be positive")
+        deadline = clock() + timeout_seconds
+        while True:
+            job = self.describe_job(submission.batch_job_id)
+            if job["status"] in {"SUCCEEDED", "FAILED"}:
+                return job, self.inspect_result(submission)
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise CloudContractError(
+                    f"timed out waiting for AWS Batch job {submission.batch_job_id}"
+                )
+            sleeper(min(poll_interval_seconds, remaining))
 
     def recent_logs(self, job_id: str, *, limit: int = 200) -> list[str]:
         if self.logs is None:

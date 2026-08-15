@@ -4,7 +4,7 @@ from io import BytesIO
 
 import pytest
 
-from prism.cloud.aws import AwsCloud, build_submit_request
+from prism.cloud.aws import AwsCloud, Submission, build_submit_request
 from prism.cloud.contract import CloudContractError
 
 
@@ -44,6 +44,15 @@ class FakeBatch:
     def submit_job(self, **kwargs):
         self.submitted = kwargs
         return {"jobId": "11111111-1111-1111-1111-111111111111"}
+
+
+class FakeWaitingBatch:
+    def __init__(self) -> None:
+        self.statuses = ["RUNNING", "FAILED", "FAILED"]
+
+    def describe_jobs(self, **kwargs):
+        assert kwargs == {"jobs": ["11111111-1111-1111-1111-111111111111"]}
+        return {"jobs": [{"status": self.statuses.pop(0)}]}
 
 
 def _definition() -> dict:
@@ -139,3 +148,44 @@ def test_batch_submission_request_has_only_allowlisted_overrides() -> None:
     ]
     assert request["retryStrategy"] == {"attempts": 1}
     assert "command" not in request["containerOverrides"]
+
+
+def test_wait_uses_batch_terminal_state_and_prism_result_semantics() -> None:
+    submission = Submission(
+        RUN_ID,
+        "11111111-1111-1111-1111-111111111111",
+        "us-east-1",
+        "prism-example",
+        "queue",
+        "definition:3",
+        IMAGE,
+        DIGEST,
+        "c" * 64,
+    )
+    sleeps: list[float] = []
+    cloud = AwsCloud(
+        region="us-east-1", s3=FakeS3(), batch=FakeWaitingBatch()
+    )
+    job, inspection = cloud.wait_for_result(
+        submission,
+        timeout_seconds=60,
+        poll_interval_seconds=5,
+        clock=lambda: 0.0,
+        sleeper=sleeps.append,
+    )
+    assert job["status"] == "FAILED"
+    assert inspection.state == "Batch job failed"
+    assert sleeps == [5]
+
+
+@pytest.mark.parametrize(
+    ("timeout", "interval"), [(0, 1), (1, 0), (-1, 1), (1, -1)]
+)
+def test_wait_rejects_nonpositive_timing(timeout: float, interval: float) -> None:
+    cloud = AwsCloud(region="us-east-1", s3=FakeS3(), batch=FakeWaitingBatch())
+    with pytest.raises(CloudContractError, match="must be positive"):
+        cloud.wait_for_result(
+            None,  # type: ignore[arg-type]
+            timeout_seconds=timeout,
+            poll_interval_seconds=interval,
+        )

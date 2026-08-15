@@ -157,13 +157,16 @@ through the narrow Cloud Phase 2 adapter:
 ```bash
 prism-cloud submit --spec container/phase1-experiment.json
 prism-cloud status RUN_ID
+prism-cloud wait RUN_ID
 prism-cloud logs RUN_ID
 prism-cloud download RUN_ID --output-dir /tmp/prism-cloud-output
 ```
 
 The [AWS Batch execution contract](docs/cloud_phase2.md) documents immutable ECR
 provenance, separate IAM roles, S3 completion semantics, verification, and
-teardown. AWS credentials come only from the standard boto3 provider chain.
+teardown. [Cloud Phase 3 operations](docs/cloud_phase3.md) make Terraform the
+source of truth and use GitHub Actions OIDC for temporary deployment
+credentials; no long-lived GitHub AWS access key is used.
 
 The [reproducibility guide](docs/reproducibility.md) contains exact commands for
 the full controlled pipeline, sanitizer builds, frozen experiment families, and

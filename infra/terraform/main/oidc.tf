@@ -52,8 +52,10 @@ data "aws_iam_policy_document" "github_deploy" {
     effect = "Allow"
     actions = [
       "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
       "ecr:CompleteLayerUpload",
       "ecr:DescribeImages",
+      "ecr:DescribeRepositories",
       "ecr:GetDownloadUrlForLayer",
       "ecr:InitiateLayerUpload",
       "ecr:ListImages",
@@ -255,6 +257,13 @@ data "aws_iam_policy_document" "github_terraform" {
   }
 
   statement {
+    sid       = "ReadLogGroups"
+    effect    = "Allow"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
+  }
+
+  statement {
     sid    = "ManagePrismBatch"
     effect = "Allow"
     actions = [
@@ -263,10 +272,6 @@ data "aws_iam_policy_document" "github_terraform" {
       "batch:DeleteComputeEnvironment",
       "batch:DeleteJobQueue",
       "batch:DeregisterJobDefinition",
-      "batch:DescribeComputeEnvironments",
-      "batch:DescribeJobDefinitions",
-      "batch:DescribeJobQueues",
-      "batch:ListTagsForResource",
       "batch:RegisterJobDefinition",
       "batch:TagResource",
       "batch:UntagResource",
@@ -278,6 +283,18 @@ data "aws_iam_policy_document" "github_terraform" {
       aws_batch_job_queue.prism.arn,
       "arn:aws:batch:${var.aws_region}:${local.account_id}:job-definition/prism-cloud-v1-arm64:*",
     ]
+  }
+
+  statement {
+    sid    = "ReadBatchConfiguration"
+    effect = "Allow"
+    actions = [
+      "batch:DescribeComputeEnvironments",
+      "batch:DescribeJobDefinitions",
+      "batch:DescribeJobQueues",
+      "batch:ListTagsForResource",
+    ]
+    resources = ["*"]
   }
 
   statement {

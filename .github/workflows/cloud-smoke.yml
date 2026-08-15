@@ -1,0 +1,151 @@
+name: Prism Cloud smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_uri:
+        description: Expected Terraform-promoted ECR repository@sha256 digest
+        required: true
+        type: string
+      git_sha:
+        description: Git SHA embedded in the accepted image
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_ACCOUNT_ID: "164998084998"
+  AWS_REGION: us-east-1
+  PRISM_CLOUD_BUCKET: prism-cloud-164998084998-us-east-1
+  PRISM_CLOUD_IMAGE: ${{ inputs.image_uri }}
+  PRISM_CLOUD_JOB_DEFINITION: prism-cloud-v1-arm64
+  PRISM_CLOUD_JOB_QUEUE: prism-cloud
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: prism-cloud-deploy
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.git_sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e .
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::164998084998:role/prism-cloud-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: prism-smoke-${{ github.run_id }}
+      - name: Verify temporary AWS identity and promoted digest
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          test "$account" = "$AWS_ACCOUNT_ID"
+          aws sts get-caller-identity
+          promoted=$(aws batch describe-job-definitions \
+            --job-definition-name "$PRISM_CLOUD_JOB_DEFINITION" \
+            --status ACTIVE \
+            --query 'reverse(sort_by(jobDefinitions,&revision))[0].containerProperties.image' \
+            --output text)
+          test "$promoted" = "$PRISM_CLOUD_IMAGE"
+          test "${promoted#*@sha256:}" != "$promoted"
+
+      - name: Submit accepted representative experiment
+        id: submit
+        run: |
+          prism-cloud submit --spec container/phase1-experiment.json > "$RUNNER_TEMP/submission.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          submission = json.loads((Path(os.environ["RUNNER_TEMP"]) / "submission.json").read_text())
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"run_id={submission['run_id']}\n")
+              output.write(f"batch_job_id={submission['batch_job_id']}\n")
+          PY
+
+      - name: Wait through the Prism Cloud interface
+        env:
+          RUN_ID: ${{ steps.submit.outputs.run_id }}
+        run: |
+          prism-cloud wait "$RUN_ID" \
+            --poll-interval-seconds 20 \
+            --timeout-seconds 3600 > "$RUNNER_TEMP/wait.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads((Path(os.environ["RUNNER_TEMP"]) / "wait.json").read_text())
+          if result["batch"] != "SUCCEEDED" or result["prism_result"] != "verified":
+              raise SystemExit(f"cloud smoke failed: {result}")
+          PY
+
+      - name: Capture CloudWatch evidence
+        if: always() && steps.submit.outputs.run_id != ''
+        env:
+          RUN_ID: ${{ steps.submit.outputs.run_id }}
+        run: prism-cloud logs "$RUN_ID" > "$RUNNER_TEMP/logs.json"
+
+      - name: Download and hash-validate canonical artifacts
+        env:
+          RUN_ID: ${{ steps.submit.outputs.run_id }}
+        run: prism-cloud download "$RUN_ID" --output-dir "$RUNNER_TEMP/cloud-output"
+
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Run the exact image locally
+        run: |
+          mkdir -p "$RUNNER_TEMP/local-output"
+          chmod 0777 "$RUNNER_TEMP/local-output"
+          docker pull "$PRISM_CLOUD_IMAGE"
+          docker run --platform linux/arm64 --rm \
+            --mount type=bind,src="$GITHUB_WORKSPACE",dst=/input,readonly \
+            --mount type=bind,src="$RUNNER_TEMP/local-output",dst=/output \
+            "$PRISM_CLOUD_IMAGE" \
+            prism-container-run \
+            --spec /input/container/phase1-experiment.json \
+            --output-dir /output
+
+      - name: Verify cloud/local scientific parity
+        run: >-
+          prism-container-verify
+          --left "$RUNNER_TEMP/local-output"
+          --right "$RUNNER_TEMP/cloud-output"
+          --mode cross-host
+
+      - name: Surface smoke evidence
+        env:
+          BATCH_JOB_ID: ${{ steps.submit.outputs.batch_job_id }}
+          RUN_ID: ${{ steps.submit.outputs.run_id }}
+        run: |
+          {
+            echo "### Prism Cloud smoke"
+            echo "- Run ID: \`${RUN_ID}\`"
+            echo "- Batch job ID: \`${BATCH_JOB_ID}\`"
+            echo "- Image: \`${PRISM_CLOUD_IMAGE}\`"
+            echo "- Batch/manifest/hash validation: passed"
+            echo "- Cloud/local cross-host parity: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prism-cloud-smoke-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/submission.json
+            ${{ runner.temp }}/wait.json
+            ${{ runner.temp }}/logs.json
+            ${{ runner.temp }}/cloud-output
+            ${{ runner.temp }}/local-output
+          if-no-files-found: warn
+          retention-days: 14

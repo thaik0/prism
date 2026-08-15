@@ -1,0 +1,78 @@
+name: Cloud CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "cloud/**"
+      - "configs/**"
+      - "container/**"
+      - "cpp/**"
+      - "infra/terraform/**"
+      - "src/**"
+      - "tests/**"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "pyproject.toml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e . pytest==9.1.1
+      - run: python -m pytest -q
+      - run: python -m compileall -q src tests
+      - run: python -m pip check
+
+  native:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build zlib1g-dev
+      - run: >-
+          cmake -S cpp -B build/cloud-ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DPRISM_BUILD_TESTS=ON
+          -DPRISM_WARNINGS_AS_ERRORS=ON
+      - run: cmake --build build/cloud-ci --parallel
+      - run: ctest --test-dir build/cloud-ci --output-on-failure
+
+  container:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          build-args: PRISM_GIT_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=prism-arm64
+          cache-to: type=gha,mode=max,scope=prism-arm64
+
+  terraform:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+      - run: terraform fmt -check -recursive infra/terraform
+      - run: terraform -chdir=infra/terraform/bootstrap init -backend=false
+      - run: terraform -chdir=infra/terraform/bootstrap validate
+      - run: terraform -chdir=infra/terraform/main init -backend=false
+      - run: terraform -chdir=infra/terraform/main validate

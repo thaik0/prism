@@ -90,6 +90,22 @@ def _logs(args: argparse.Namespace) -> dict[str, object]:
     }
 
 
+def _wait(args: argparse.Namespace) -> dict[str, object]:
+    cloud, bucket = _cloud(args)
+    submission = cloud.read_submission(bucket, args.run_id)
+    job, inspection = cloud.wait_for_result(
+        submission,
+        timeout_seconds=args.timeout_seconds,
+        poll_interval_seconds=args.poll_interval_seconds,
+    )
+    return {
+        "batch": job["status"],
+        "batch_job_id": submission.batch_job_id,
+        "prism_result": inspection.state,
+        "run_id": submission.run_id,
+    }
+
+
 def _download(args: argparse.Namespace) -> dict[str, object]:
     cloud, bucket = _cloud(args)
     submission = cloud.read_submission(bucket, args.run_id)
@@ -131,6 +147,13 @@ def _parser() -> argparse.ArgumentParser:
     logs.add_argument("run_id")
     logs.add_argument("--limit", type=int, default=200)
     logs.set_defaults(handler=_logs)
+
+    wait = commands.add_parser("wait")
+    _common(wait)
+    wait.add_argument("run_id")
+    wait.add_argument("--poll-interval-seconds", type=float, default=20.0)
+    wait.add_argument("--timeout-seconds", type=float, default=3600.0)
+    wait.set_defaults(handler=_wait)
 
     download = commands.add_parser("download")
     _common(download)
