@@ -76,7 +76,9 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: 164998084998.dkr.ecr.us-east-1.amazonaws.com/prism-cloud:sha-${{ github.sha }}
-          build-args: PRISM_GIT_REVISION=${{ github.sha }}
+          build-args: |
+            PRISM_ASAN_OPTIONS=detect_leaks=0
+            PRISM_GIT_REVISION=${{ github.sha }}
           cache-from: type=gha,scope=prism-arm64
           cache-to: type=gha,mode=max,scope=prism-arm64
 
