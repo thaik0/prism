@@ -4,7 +4,6 @@
 .DS_Store
 .env
 .env.*
-.github
 .idea
 .pytest_cache
 .ruff_cache

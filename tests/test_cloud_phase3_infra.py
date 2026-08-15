@@ -68,3 +68,19 @@ def test_workflows_use_oidc_and_keep_publish_promote_smoke_separate() -> None:
     assert "prism-cloud download" in smoke
     assert "prism-container-verify" in smoke
     assert ":latest" not in combined
+
+
+def test_publication_builds_natively_with_default_leak_detection() -> None:
+    publish = _read(WORKFLOWS / "cloud-image-publish.yml")
+    ci = _read(WORKFLOWS / "cloud-ci.yml")
+    dockerfile = _read(ROOT / "Dockerfile")
+
+    assert "runs-on: ubuntu-24.04-arm" in publish
+    assert "runs-on: ubuntu-24.04-arm" in ci
+    assert "Verify native ARM64 runner" in publish
+    assert "setup-qemu-action" not in publish
+    assert "setup-qemu-action" not in ci
+    assert "PRISM_ASAN_OPTIONS" not in publish
+    assert "PRISM_ASAN_OPTIONS" not in ci
+    assert "PRISM_ASAN_OPTIONS" not in dockerfile
+    assert "detect_leaks=0" not in dockerfile

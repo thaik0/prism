@@ -2,10 +2,6 @@ ARG PYTHON_IMAGE=python:3.12.10-slim-bookworm@sha256:fd95fa221297a88e1cf49c55ec1
 
 FROM ${PYTHON_IMAGE} AS build-test
 
-# QEMU user-mode emulation relies on ptrace, which LeakSanitizer cannot use.
-# Native builds leave this unset and retain the sanitizer's default behavior.
-ARG PRISM_ASAN_OPTIONS
-
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -44,9 +40,8 @@ RUN cmake -S cpp -B /build/native-asan -G Ninja \
         -DPRISM_BUILD_TESTS=ON \
         -DPRISM_WARNINGS_AS_ERRORS=ON \
         -DPRISM_ENABLE_ASAN=ON \
-    && ASAN_OPTIONS="${PRISM_ASAN_OPTIONS}" cmake --build /build/native-asan --parallel \
-    && ASAN_OPTIONS="${PRISM_ASAN_OPTIONS}" \
-        ctest --test-dir /build/native-asan --output-on-failure
+    && cmake --build /build/native-asan --parallel \
+    && ctest --test-dir /build/native-asan --output-on-failure
 
 RUN cmake -S cpp -B /build/native-ubsan -G Ninja \
         -DCMAKE_BUILD_TYPE=Debug \

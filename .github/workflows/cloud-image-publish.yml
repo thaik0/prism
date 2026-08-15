@@ -16,12 +16,20 @@ env:
 
 jobs:
   publish:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     environment: prism-cloud-deploy
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
+      - name: Verify native ARM64 runner
+        run: |
+          host_arch=$(uname -m)
+          docker_arch=$(docker info --format '{{.Architecture}}')
+          echo "Host architecture: ${host_arch}"
+          echo "Docker architecture: ${docker_arch}"
+          test "$host_arch" = aarch64
+          test "$docker_arch" = aarch64
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -49,9 +57,6 @@ jobs:
           test "$account" = "$AWS_ACCOUNT_ID"
           aws sts get-caller-identity
       - uses: aws-actions/amazon-ecr-login@v2
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
       - uses: docker/setup-buildx-action@v3
 
       - name: Check immutable Git SHA tag
@@ -76,9 +81,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: 164998084998.dkr.ecr.us-east-1.amazonaws.com/prism-cloud:sha-${{ github.sha }}
-          build-args: |
-            PRISM_ASAN_OPTIONS=detect_leaks=0
-            PRISM_GIT_REVISION=${{ github.sha }}
+          build-args: PRISM_GIT_REVISION=${{ github.sha }}
           cache-from: type=gha,scope=prism-arm64
           cache-to: type=gha,mode=max,scope=prism-arm64
 
