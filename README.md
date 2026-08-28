@@ -5,8 +5,9 @@ demand structure can help decide what data should remain in expensive fast
 memory. It learns fuzzy latent working sets, estimates demand, projects that
 demand to records or prefix blocks, and passes the result to a deterministic
 cost-aware placement controller. The project spans controlled simulation, a
-native C++ RAM/file-backed store, exact Python/C++ execution parity, and a pinned
-LLM-serving simulator integration.
+native C++ RAM/file-backed store, exact Python/C++ execution parity, a pinned
+LLM-serving simulator integration, and a reproducible Linux/ARM64 batch path on
+AWS.
 
 ## Question and conclusion
 
@@ -85,74 +86,49 @@ real-hardware performance claims.
   transitions;
 - private pybind11 boundary with an independent Python semantic-parity ledger;
 - narrow LLMServingSim hook that leaves scheduling, active KV, transfers,
-  recomputation, and timing simulator-owned.
+  recomputation, and timing simulator-owned;
+- digest-pinned Linux/ARM64 batch execution with deterministic manifests and
+  local/cloud parity verification;
+- AWS Batch on Fargate with ECR, S3, and CloudWatch Logs, managed through
+  Terraform and GitHub Actions OIDC rather than long-lived AWS keys.
 
-## Quick start
+## How to run Prism
 
 Supported development environments are POSIX macOS and Linux with Python 3.11+
 and CMake 3.24+. A C++17 compiler and zlib are required for the native extension.
+From the repository root, install Prism and run one accepted end-to-end
+experiment. The output directory must be absent or empty.
 
 ```bash
 python3 -m pip install -e .
-python3 -m pytest -q
-python3 -m compileall -q src tests
-python3 -m pip check
+python3 -m prism.experiments.cli \
+  --manifest configs/milestone5_experiments.json \
+  --experiment-id baseline__seed_1729 \
+  --output-dir /tmp/prism_run
 ```
 
-Generate and validate the small representative workload:
-
-```bash
-PYTHONPATH=src python3 -m prism.workload.cli \
-  --config configs/milestone1_representative.json \
-  --output-dir /tmp/prism_m1
-
-PYTHONPATH=src python3 -m prism.workload.validate \
-  --run-dir /tmp/prism_m1 \
-  --require-demonstrations
-```
-
-Build and test the standalone native engine:
-
-```bash
-cmake -S cpp -B build/cpp-debug \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DPRISM_BUILD_TESTS=ON \
-  -DPRISM_WARNINGS_AS_ERRORS=ON
-cmake --build build/cpp-debug --parallel
-ctest --test-dir build/cpp-debug --output-on-failure
-```
-
-Run the forced Python/C++ parity fixture:
-
-```bash
-python3 -m prism.native.cli \
-  --fixture \
-  --output-dir /tmp/prism_native_fixture
-```
-
-Build and run the bounded Linux batch image:
+For the bounded Linux/ARM64 batch path, build the image and run the committed
+single-experiment spec:
 
 ```bash
 docker build --no-cache \
   --build-arg PRISM_GIT_REVISION="$(git rev-parse HEAD)" \
   -t prism:phase1 .
 
-mkdir -p /tmp/prism_phase1_output
-chmod 0777 /tmp/prism_phase1_output
+mkdir -p /tmp/prism_batch_output
+chmod 0777 /tmp/prism_batch_output
 docker run --rm \
   --mount type=bind,src="$PWD",dst=/input,readonly \
-  --mount type=bind,src=/tmp/prism_phase1_output,dst=/output \
+  --mount type=bind,src=/tmp/prism_batch_output,dst=/output \
   prism:phase1 \
   prism-container-run \
   --spec /input/container/phase1-experiment.json \
   --output-dir /output
 ```
 
-The [container batch contract](docs/containerization.md) documents the strict
-I/O boundary, deterministic manifest, parity rules, and failure behavior.
-
-After manual account setup, submit that accepted image to AWS Batch/Fargate
-through the narrow Cloud Phase 2 adapter:
+After deploying the documented AWS foundation and setting the required
+`PRISM_CLOUD_*` environment variables, submit the same accepted workload through
+the narrow AWS Batch adapter:
 
 ```bash
 prism-cloud submit --spec container/phase1-experiment.json
@@ -162,15 +138,7 @@ prism-cloud logs RUN_ID
 prism-cloud download RUN_ID --output-dir /tmp/prism-cloud-output
 ```
 
-The [AWS Batch execution contract](docs/cloud_phase2.md) documents immutable ECR
-provenance, separate IAM roles, S3 completion semantics, verification, and
-teardown. [Cloud Phase 3 operations](docs/cloud_phase3.md) make Terraform the
-source of truth and use GitHub Actions OIDC for temporary deployment
-credentials; no long-lived GitHub AWS access key is used.
-
-The [reproducibility guide](docs/reproducibility.md) contains exact commands for
-the full controlled pipeline, sanitizer builds, frozen experiment families, and
-the pinned LLMServingSim integration.
+Run `python3 -m pytest -q` for the Python suite.
 
 ## Repository map
 
@@ -186,18 +154,18 @@ the pinned LLMServingSim integration.
 | `src/prism/cloud` | deterministic S3 bundle, AWS Batch CLI/bootstrap, and verified download |
 | `src/prism/llm_sim` | pinned LLMServingSim policy integration |
 | `cpp` | native immutable two-tier storage engine and tools |
+| `container` | accepted batch spec and pinned Python constraints |
+| `infra/terraform` | AWS state bootstrap and main Batch/Fargate infrastructure |
+| `.github/workflows` | cloud CI, image publication, Terraform promotion, and smoke verification |
 | `configs` | committed experiment and controller configurations |
-| `docs` | architecture, milestone evidence, and closeout documentation |
 | `integration/llmservingsim` | isolated upstream hook and runtime definition |
 | `tests` | deterministic, failure-path, leakage, and integration tests |
 
-Start with the [final technical report](docs/final_report.md), the candid
-[lessons learned](docs/lessons_learned.md), or the complete
-[documentation index](docs/index.md).
-
 ## Project status
 
-Prism is complete at `v1.0.0` as a reproducible research project. Milestones
-1--8 are closed. Milestone 9 is canceled. The repository is not production-ready:
-it has no asynchronous migration, concurrent native request path, mutable data,
-or demonstrated heterogeneous-hardware advantage.
+Prism's scientific core is complete at `v1.0.0`: Milestones 1--8 are closed and
+Milestone 9 is canceled. Cloud Phases 1 and 2 package and execute the accepted
+workload without changing its scientific claims; Cloud Phase 3 Terraform/OIDC
+acceptance is in progress. The repository is not production-ready: it has no
+asynchronous migration, concurrent native request path, mutable data, or
+demonstrated heterogeneous-hardware advantage.

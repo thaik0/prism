@@ -116,6 +116,7 @@ core.*
 # Generated Prism artifacts
 # =========================
 
+/docs/
 /results/
 /traces/
 /checkpoints/
