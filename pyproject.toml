@@ -11,10 +11,17 @@ version = "1.0.0"
 description = "Predictive storage-tiering research system"
 requires-python = ">=3.11"
 dependencies = [
+    "boto3>=1.35,<2",
     "numpy",
     "scikit-learn",
     "scipy",
 ]
+
+[project.scripts]
+prism-container-run = "prism.container.runner:main"
+prism-container-verify = "prism.container.verify:main"
+prism-cloud = "prism.cloud.cli:main"
+prism-cloud-bootstrap = "prism.cloud.bootstrap:main"
 
 [tool.scikit-build]
 minimum-version = "build-system.requires"

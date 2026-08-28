@@ -1,0 +1,5 @@
+# Python runtime/test versions verified for the Phase 1 Linux image.
+numpy==2.3.2
+pytest==9.1.1
+scikit-learn==1.9.0
+scipy==1.16.1

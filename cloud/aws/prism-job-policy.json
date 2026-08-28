@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadPrismCloudInputs",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::BUCKET_NAME/prism-cloud/v1/runs/*/input/*"
+    },
+    {
+      "Sid": "ReadWritePrismCloudAttempts",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::BUCKET_NAME/prism-cloud/v1/runs/*/attempts/*"
+    }
+  ]
+}

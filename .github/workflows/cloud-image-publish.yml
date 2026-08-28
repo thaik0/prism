@@ -1,0 +1,104 @@
+name: Publish Prism ARM64 image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [cloud/milestone3]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_ACCOUNT_ID: "164998084998"
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: prism-cloud
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    environment: prism-cloud-deploy
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Verify native ARM64 runner
+        run: |
+          host_arch=$(uname -m)
+          docker_arch=$(docker info --format '{{.Architecture}}')
+          echo "Host architecture: ${host_arch}"
+          echo "Docker architecture: ${docker_arch}"
+          test "$host_arch" = aarch64
+          test "$docker_arch" = aarch64
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e . pytest==9.1.1
+      - run: python -m pytest -q
+      - run: python -m compileall -q src tests
+      - run: python -m pip check
+      - run: >-
+          cmake -S cpp -B build/cloud-publish -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DPRISM_BUILD_TESTS=ON
+          -DPRISM_WARNINGS_AS_ERRORS=ON
+      - run: cmake --build build/cloud-publish --parallel
+      - run: ctest --test-dir build/cloud-publish --output-on-failure
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::164998084998:role/prism-cloud-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: prism-image-${{ github.run_id }}
+      - name: Verify temporary AWS identity
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          test "$account" = "$AWS_ACCOUNT_ID"
+          aws sts get-caller-identity
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Check immutable Git SHA tag
+        id: image
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+        run: |
+          if digest=$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --query 'imageDetails[0].imageDigest' --output text 2>/dev/null); then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/build-push-action@v6
+        if: steps.image.outputs.exists != 'true'
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: 164998084998.dkr.ecr.us-east-1.amazonaws.com/prism-cloud:sha-${{ github.sha }}
+          build-args: PRISM_GIT_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=prism-arm64
+          cache-to: type=gha,mode=max,scope=prism-arm64
+
+      - name: Record immutable digest
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+        run: |
+          digest=$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --query 'imageDetails[0].imageDigest' --output text)
+          image_uri="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}@${digest}"
+          test "${digest#sha256:}" != "$digest"
+          {
+            echo "### Prism image publication"
+            echo "- Git SHA: \`${GITHUB_SHA}\`"
+            echo "- Tag: \`${IMAGE_TAG}\`"
+            echo "- Digest: \`${digest}\`"
+            echo "- Promotion input: \`${image_uri}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

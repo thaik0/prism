@@ -116,11 +116,32 @@ core.*
 # Generated Prism artifacts
 # =========================
 
+/docs/
 /results/
 /traces/
 /checkpoints/
 /artifacts/
 /data/generated/
+
+
+# =========================
+# Terraform
+# =========================
+
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/terraform/main/backend.hcl
+infra/terraform/main/*.auto.tfvars
+infra/terraform/bootstrap/*.auto.tfvars
 
 
 # =========================

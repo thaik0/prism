@@ -1,0 +1,23 @@
+{
+  "jobDefinitionName": "prism-cloud-v1-arm64",
+  "type": "container",
+  "platformCapabilities": ["FARGATE"],
+  "retryStrategy": {"attempts": 1},
+  "propagateTags": true,
+  "containerProperties": {
+    "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/prism-cloud@sha256:IMAGE_DIGEST",
+    "command": ["prism-cloud-bootstrap"],
+    "jobRoleArn": "arn:aws:iam::ACCOUNT_ID:role/prism-cloud-job",
+    "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/prism-cloud-execution",
+    "resourceRequirements": [
+      {"type": "VCPU", "value": "1"},
+      {"type": "MEMORY", "value": "2048"}
+    ],
+    "networkConfiguration": {"assignPublicIp": "ENABLED"},
+    "logConfiguration": {"logDriver": "awslogs"},
+    "runtimePlatform": {
+      "operatingSystemFamily": "LINUX",
+      "cpuArchitecture": "ARM64"
+    }
+  }
+}
